@@ -1,6 +1,7 @@
 # Seekr Previews — Android SDK
 
 [![CI](https://github.com/AKhalil609/seekr-android-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/AKhalil609/seekr-android-sdk/actions/workflows/ci.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/tv.seekr/seekr-android)](https://central.sonatype.com/artifact/tv.seekr/seekr-android)
 
 Drop-in seek-preview thumbnails for Android TV and mobile players, powered by the
 [Seekr](https://seekr.tv) API. Add one dependency, pass your key, and get a cropped
@@ -30,7 +31,7 @@ path) or run on non-Android JVM.
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("tv.seekr:seekr-android:0.1.0")
+    implementation("tv.seekr:seekr-android:0.1.1")
 }
 ```
 
