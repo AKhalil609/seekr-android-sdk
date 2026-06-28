@@ -1,11 +1,12 @@
+import com.vanniktech.maven.publish.AndroidSingleVariantLibrary
+import org.gradle.api.publish.PublishingExtension
+import org.gradle.api.publish.maven.MavenPublication
+
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
-    `maven-publish`
+    alias(libs.plugins.maven.publish)
 }
-
-group = providers.gradleProperty("GROUP").get()
-version = providers.gradleProperty("VERSION_NAME").get()
 
 android {
     namespace = "tv.seekr.previews.compose"
@@ -31,12 +32,6 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion = libs.versions.composeCompiler.get()
     }
-
-    publishing {
-        singleVariant("release") {
-            withSourcesJar()
-        }
-    }
 }
 
 dependencies {
@@ -48,27 +43,27 @@ dependencies {
     implementation(libs.androidx.compose.foundation)
 }
 
+// Coordinates, POM and signing come from gradle.properties (root + this module), driven by
+// the com.vanniktech.maven.publish plugin. AGP's bundled Javadoc generator crashes on this
+// Kotlin toolchain, so we disable it and attach an empty javadoc jar (the API is documented
+// in the published -sources.jar; Central only requires a signed -javadoc.jar to exist).
+mavenPublishing {
+    configure(
+        AndroidSingleVariantLibrary(
+            variant = "release",
+            sourcesJar = true,
+            publishJavadocJar = false,
+        )
+    )
+}
+
+val emptyJavadocJar = tasks.register<Jar>("emptyJavadocJar") {
+    archiveClassifier.set("javadoc")
+}
 afterEvaluate {
-    publishing {
-        publications {
-            create<MavenPublication>("release") {
-                from(components["release"])
-                artifactId = "seekr-compose"
-                pom {
-                    name.set("Seekr Previews — Compose")
-                    description.set("Jetpack Compose drop-in thumbnail for Seekr seek previews.")
-                    url.set("https://seekr.tv")
-                    licenses {
-                        license {
-                            name.set("The Apache License, Version 2.0")
-                            url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
-                        }
-                    }
-                    scm {
-                        url.set("https://github.com/AKhalil609/seekr-android-sdk")
-                    }
-                }
-            }
+    extensions.configure(PublishingExtension::class.java) {
+        publications.withType(MavenPublication::class.java).configureEach {
+            artifact(emptyJavadocJar)
         }
     }
 }

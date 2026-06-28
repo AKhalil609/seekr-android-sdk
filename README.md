@@ -1,5 +1,7 @@
 # Seekr Previews — Android SDK
 
+[![CI](https://github.com/AKhalil609/seekr-android-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/AKhalil609/seekr-android-sdk/actions/workflows/ci.yml)
+
 Drop-in seek-preview thumbnails for Android TV and mobile players, powered by the
 [Seekr](https://seekr.tv) API. Add one dependency, pass your key, and get a cropped
 `Bitmap` for any scrub position — the SDK handles the `/sprites` lookup, WebVTT parsing,
@@ -129,15 +131,10 @@ to call optimistically for every title; if Seekr has nothing, nothing renders.
 
 ## Publishing (maintainers)
 
-Coordinates come from `gradle.properties` (`GROUP=tv.seekr`, `VERSION_NAME`). The modules
-declare `maven-publish` publications (`seekr-core`, `seekr-android`) with sources jars and
-POM metadata.
-
-Maven Central additionally requires GPG signing and a verified `tv.seekr` namespace on
-Sonatype. The least-friction path is the
-[`com.vanniktech.maven.publish`](https://github.com/vanniktech/gradle-maven-publish-plugin)
-plugin — add it, set the signing/Sonatype secrets, and run `publishToMavenCentral`. Until
-then, `./gradlew publishToMavenLocal` works for local testing.
+Publishing is wired with the [`com.vanniktech.maven.publish`](https://github.com/vanniktech/gradle-maven-publish-plugin)
+plugin and a GitHub Actions `Publish` workflow that runs on every GitHub Release. Coordinates,
+POM and signing config live in `gradle.properties`. See **[PUBLISHING.md](PUBLISHING.md)** for
+the one-time Central Portal namespace + GPG + secrets setup and the release flow.
 
 ## License
 
