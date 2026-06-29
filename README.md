@@ -31,7 +31,7 @@ path) or run on non-Android JVM.
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("tv.seekr:seekr-android:0.1.1")
+    implementation("tv.seekr:seekr-android:0.1.3")
 }
 ```
 
@@ -57,6 +57,9 @@ val content = if (isSeries) {
 
 val track = seekr.loadTrack(content, durationMs = player.duration)
 // track == null  → no previews for this title; just don't show a thumbnail.
+
+// Eagerly download all sprite sheets so every thumbnailAt() call is instant.
+track?.prefetchSheets()
 ```
 
 Pass whichever ids you have. `Movie` and `Episode` are distinct types so you can't send
@@ -96,8 +99,8 @@ timeBar.addListener(object : TimeBar.OnScrubListener {
 ```
 
 `thumbnailAt` is a `suspend` function and is safe to call on the main thread — it hops to
-background dispatchers for the network fetch and the pixel crop. Throttle calls to your
-frame rate if the user drags quickly.
+a background dispatcher for the network fetch only; the in-memory crop runs inline and is
+sub-millisecond for typical thumbnail sizes.
 
 ### Optional: validate a key in settings
 
