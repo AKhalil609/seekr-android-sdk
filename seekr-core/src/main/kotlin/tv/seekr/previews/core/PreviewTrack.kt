@@ -16,6 +16,9 @@ class PreviewTrack internal constructor(
     /** Number of thumbnails in the track. */
     val size: Int get() = cues.size
 
+    /** All distinct sprite-sheet URLs referenced by this track, in cue order. */
+    val sheetUrls: Set<String> get() = cues.mapTo(LinkedHashSet()) { it.tile.sheetUrl }
+
     /**
      * The [SeekrTile] covering [positionMs]. If the position falls in a gap, returns the
      * nearest preceding tile; before the first cue, returns the first tile; null only when
