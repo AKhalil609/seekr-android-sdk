@@ -1,6 +1,5 @@
 package tv.seekr.previews.core.internal
 
-import kotlin.math.roundToLong
 import tv.seekr.previews.core.SeekrTile
 
 /**
@@ -13,7 +12,7 @@ import tv.seekr.previews.core.SeekrTile
  */
 internal object Vtt {
 
-    fun parse(vtt: String, scale: Double): List<VttCue> {
+    fun parse(vtt: String): List<VttCue> {
         val cues = ArrayList<VttCue>()
         val lines = vtt.lines()
         var i = 0
@@ -28,8 +27,8 @@ internal object Vtt {
                     val tile = payload?.let { parseTile(it) }
                     if (tile != null) {
                         cues += VttCue(
-                            startMs = (startMs * scale).roundToLong(),
-                            endMs = (endMs * scale).roundToLong(),
+                            startMs = startMs,
+                            endMs = endMs,
                             tile = tile,
                         )
                     }
