@@ -28,9 +28,10 @@ internal class LookupClient(
     suspend fun loadCues(content: SeekrContent, durationMs: Long): List<VttCue>? =
         withContext(Dispatchers.IO) {
             val lookup = fetchLookup(content, durationMs) ?: return@withContext null
-            val scale = lookup.scale.takeIf { it > 0.0 } ?: 1.0
-            val vtt = fetchVtt(lookup.vttUrl) ?: return@withContext null
-            Vtt.parse(vtt, scale)
+            // st=1 asks the sprites Worker to serve cue times already on the client
+            // timeline (it applies the scale baked into vtt_url), so no scaling here.
+            val vtt = fetchVtt(lookup.vttUrl + "&st=1") ?: return@withContext null
+            Vtt.parse(vtt)
         }
 
     suspend fun validateKey(): Boolean = withContext(Dispatchers.IO) {
