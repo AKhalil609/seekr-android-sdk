@@ -21,8 +21,9 @@ class SeekrTrack internal constructor(
 
     /**
      * Duration, in milliseconds, of the media this track's sprite sheets were generated from.
-     * See [tv.seekr.previews.core.PreviewTrack.sourceDurationMs] for the full explanation and
-     * how to use it to seed [offsetMs].
+     * See [tv.seekr.previews.core.PreviewTrack.sourceDurationMs] — in particular, why the
+     * difference between this and the `durationMs` you passed to `loadTrack` must **not** be
+     * auto-applied to [offsetMs].
      */
     val sourceDurationMs: Long get() = track.sourceDurationMs
 
@@ -34,13 +35,19 @@ class SeekrTrack internal constructor(
 
     /**
      * Signed milliseconds added to a requested position before the preview is looked up.
-     * A **negative** value suits the common case where the release being played has extra
-     * head content (a logo or black frames) the sprite source lacked; a **positive** value
-     * suits the reverse. The correct value is always
-     * `sourceDurationMs - durationMsPassedToLoadTrack`. See
-     * [tv.seekr.previews.core.PreviewTrack.offsetMs] for the full sign convention and a
-     * worked example. Defaults to `0`. Safe to set from the UI thread — e.g. from a "sync
-     * +/-" control next to the scrubber — while [thumbnailAt] is polled from a coroutine.
+     * A **negative** value suits the case where the release being played has extra
+     * **head** content (a logo or black frames) the sprite source lacked; a **positive**
+     * value suits the reverse. See [tv.seekr.previews.core.PreviewTrack.offsetMs] for the
+     * full sign convention and a worked example.
+     *
+     * Defaults to `0`, and that is the right default: the offset depends on *where* two
+     * releases differ, not on how much their durations differ, so it cannot be derived from
+     * [sourceDurationMs]. See [tv.seekr.previews.core.PreviewTrack.sourceDurationMs] for why
+     * `sourceDurationMs - durationMs` must not be auto-applied, and prefer a user-facing
+     * "preview sync +/-" control instead.
+     *
+     * Safe to set from the UI thread — e.g. from that sync control next to the scrubber —
+     * while [thumbnailFor] is polled from a coroutine.
      */
     var offsetMs: Long
         get() = track.offsetMs
@@ -92,6 +99,20 @@ class SeekrTrack internal constructor(
      * choice for you — decide per integration whether exact preview/playback agreement or
      * exact positional accuracy matters more, and seek to [SeekrThumbnail.cueStartMs] or the
      * original position accordingly.
+     *
+     * ### This is a floor lookup, not a nearest lookup
+     * The cue returned *contains* [positionMs], and its frame was captured at its **start**,
+     * so it holds the closest available frame only for the first half of its window. At
+     * `18_500` against a `160_000`-style 10s grid the frame is 8.5s stale while one 1.5s away
+     * exists at the cue's end. Past the midpoint, prefer the successor:
+     * ```
+     * val cue = track.thumbnailFor(positionMs) ?: return
+     * val preferSuccessor = (positionMs - cue.cueStartMs) > (cue.cueEndMs - positionMs)
+     * val shown = if (preferSuccessor) track.thumbnailFor(cue.cueEndMs) ?: cue else cue
+     * ```
+     * The comparison avoids dividing by two so it stays exact on a non-uniform cue grid.
+     * Whichever cue you show, label it with its `cueStartMs` rather than the user's raw scrub
+     * position — see the "Preview accuracy" section of the README.
      *
      * [SeekrThumbnail.cueStartMs] currently holds the cue *grid* time, not necessarily the
      * exact source frame timestamp: the sprite generator snaps frame extraction to the

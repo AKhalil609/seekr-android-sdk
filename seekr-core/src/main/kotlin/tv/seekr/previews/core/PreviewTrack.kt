@@ -26,10 +26,9 @@ import tv.seekr.previews.core.internal.VttCue
  *   had. A scene at 00:10:30 in the sprite source is at 00:10:00 in playback, so set
  *   `offsetMs = 30_000` and `tileAt(600_000)` resolves to `630_000`.
  *
- * In both directions the correct value is `sourceDurationMs - durationMs` (the duration you
- * passed to [SeekrPreviews.loadTrack]), so [sourceDurationMs] can seed [offsetMs] directly —
- * see its KDoc. Note the sign follows from the lookup being `position + offsetMs`: a longer
- * played release yields a negative offset.
+ * In both directions the offset is a property of *where* the two releases differ, not of how
+ * much their durations differ. See [sourceDurationMs] for why `sourceDurationMs - durationMs`
+ * must **not** be auto-applied as the offset, and what to do instead.
  *
  * [offsetMs] is a plain `var` backed by an [AtomicLong] rather than an immutable
  * `withOffset(...)` copy: the intended usage is a single long-lived [PreviewTrack] held for
@@ -47,20 +46,37 @@ class PreviewTrack internal constructor(
      * generated from — as reported by the backend's `/sprites` lookup (`source_duration_ms`).
      *
      * Comparing this value against the `durationMs` you passed to [SeekrPreviews.loadTrack]
-     * tells you whether the release you're playing matches the release the previews were
-     * generated from:
+     * tells you whether the release you're playing is the same *length* as the release the
+     * previews were generated from:
      * ```
      * val driftMs = track.sourceDurationMs - durationMsPassedToLoadTrack
      * ```
-     * If `driftMs` is non-zero, every thumbnail in the title will be offset from the actual
-     * playback position by that same constant amount — this is the expected offset produced
-     * by the mismatch described in the "Preview sync offset" section of this class's KDoc.
-     * `driftMs` is exactly the value to seed [offsetMs] with to correct for it up front,
-     * before the user ever notices a drifted thumbnail.
+     *
+     * ### Do not assign `driftMs` to [offsetMs]
+     * It is tempting, and it is wrong more often than it is right. A duration delta says the
+     * two releases differ in length; it says nothing about *where* they differ, and only a
+     * difference at the **head** produces a constant shift equal to that delta:
+     *
+     * | Where the releases differ | `driftMs` | Correct [offsetMs] |
+     * |---|---|---|
+     * | Extra 30s logo at the head | -30_000 | -30_000 (the formula happens to be right) |
+     * | Extra 30s of credits at the tail | -30_000 | **0** — previews were already correct |
+     * | 30s trimmed from the middle | -30_000 | no constant value is correct |
+     * | Container padding / rounding / VFR reporting | a few hundred ms | ~0 |
+     *
+     * Tail differences (regional credit rolls, retail vs. streaming masters) are at least as
+     * common as head differences, so auto-seeding from `driftMs` routinely *breaks* titles
+     * whose previews were already correct. Worse, the resulting error is uniform, so it looks
+     * like a correct preview of the wrong moment rather than an obvious bug — users quietly
+     * stop trusting the scrubber instead of reporting it.
+     *
+     * Leave [offsetMs] at `0` by default and expose a manual "preview sync +/-" control (the
+     * same affordance as a subtitle delay), persisted per title. Use `driftMs` only as a hint
+     * that drift is *plausible* — e.g. to surface that control more prominently, or as a
+     * clearly-labelled, undoable one-tap suggestion inside it.
      *
      * Defaults to `0` when the backend response omits `source_duration_ms` (older backends),
-     * in which case no drift can be computed and [offsetMs] should be left at its default
-     * unless corrected by other means (e.g. a manual "sync +/-" UI control).
+     * in which case no drift can be computed at all — guard for that before using it.
      */
     val sourceDurationMs: Long = 0,
     /**
@@ -125,6 +141,21 @@ class PreviewTrack internal constructor(
      * where the user actually dragged. This library does not make that choice for you — decide
      * per integration whether exact preview/playback agreement or exact positional accuracy
      * matters more, and seek to [SeekrCue.startMs] or the original position accordingly.
+     *
+     * ### This is a floor lookup, not a nearest lookup
+     * The cue returned is the one that *contains* [positionMs], and each cue's frame was
+     * captured at its **start**. So the containing cue holds the closest available frame only
+     * for the first half of its window: at `18_500` against a `10_000..20_000` cue, the frame
+     * you get is 8.5s stale while a frame 1.5s away exists at `20_000`. Past the midpoint you
+     * almost always want the successor:
+     * ```
+     * val cue = track.cueAt(positionMs) ?: return
+     * val preferSuccessor = (positionMs - cue.startMs) > (cue.endMs - positionMs)
+     * val shown = if (preferSuccessor) track.cueAt(cue.endMs) ?: cue else cue
+     * ```
+     * The comparison avoids dividing by two so it stays exact on a non-uniform cue grid — cue
+     * lengths are not guaranteed equal, and will be less uniform once cue starts carry real
+     * keyframe times (see below).
      *
      * ### Precision of [SeekrCue.startMs] today
      * [SeekrCue.startMs] currently holds the cue *grid* time, not necessarily the exact source
