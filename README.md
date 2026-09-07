@@ -133,6 +133,115 @@ The SDK never throws on a normal "no previews available" outcome — lookups, ne
 failures and missing previews all surface as `null`. So `track?.thumbnailAt(pos)` is safe
 to call optimistically for every title; if Seekr has nothing, nothing renders.
 
+## Preview accuracy
+
+Previews are an approximation of the video, not a frame-accurate copy of it. Understanding
+where the approximation comes from will save you a debugging session the first time a
+thumbnail doesn't line up with the frame you land on after a seek.
+
+### 1. Cue quantisation
+
+Thumbnails exist at a fixed interval (commonly every 10s), not for every millisecond of the
+title. `thumbnailAt(positionMs)` (and `tileAt`/`cueAt`) return the cue whose start is at or
+before `positionMs` — so the image you get back can be up to one interval *behind* the
+position you actually asked for.
+
+```kotlin
+// Cues exist at 0, 10_000, 20_000, ...
+track.thumbnailAt(18_500) // returns the cue that starts at 10_000, not 18_500
+```
+
+If you need to know exactly which timestamp the thumbnail you're showing represents, use
+`thumbnailFor(positionMs)` (or `PreviewTrack.cueAt` in `seekr-core`) instead of `thumbnailAt` —
+it returns a `SeekrThumbnail` with `cueStartMs`/`cueEndMs` alongside the bitmap.
+
+```kotlin
+val thumb = track.thumbnailFor(18_500) // -> cueStartMs = 10_000, cueEndMs = 20_000
+```
+
+### 2. Keyframe approximation
+
+Decoding every frame of a title to find the exact one at each cue time would make sprite
+generation impractically slow, so the generator instead extracts the nearest container
+keyframe within +/-3s of the cue's grid time. That means the frame actually shown in the
+sprite can be up to 3 seconds away from `cueStartMs` — the cue's grid time, not necessarily
+the true frame timestamp.
+
+Newly generated titles record the *true* keyframe time as the cue start, so `cueStartMs` is
+exact for them. Older titles still carry the grid time. In other words, `cueStartMs`
+precision varies by title today, and improves over time as media is regenerated — treat it
+as accurate to within a few seconds, not to the millisecond, unless you've confirmed
+otherwise for a given title.
+
+### 3. Seeking from a preview
+
+**This is the one most integrations get wrong.** Sprite frames are keyframe-aligned (see
+above), but ExoPlayer/media3's default seek is an *exact* seek that deliberately lands
+between keyframes and decodes forward to hit the requested position precisely. Seeking to
+the position the user actually dragged to after showing them a keyframe-aligned preview
+means the frame they land on won't match the thumbnail they were just looking at.
+
+If you want the played frame to visually match the preview, tell ExoPlayer to snap to the
+nearest sync sample instead of seeking exactly:
+
+```kotlin
+import androidx.media3.exoplayer.SeekParameters
+
+player.setSeekParameters(SeekParameters.CLOSEST_SYNC)
+player.seekTo(target)
+```
+
+The alternative is to seek to `cueStartMs` (from `thumbnailFor`/`cueAt`) with the default
+`SeekParameters.DEFAULT`. Be honest with yourself about the trade-off either way:
+
+- `SeekParameters.CLOSEST_SYNC` + seek to the user's actual position: the played frame
+  matches a keyframe near where the user dragged, but not necessarily the exact preview
+  they saw.
+- Default seek to `cueStartMs`: the played frame matches the preview exactly, but the user
+  can land up to one cue interval away from where they actually aimed.
+
+There's no universally correct choice — pick per integration.
+
+### 4. Source version mismatch and the sync offset
+
+Sprites are generated once from one specific release of a title. If a user is playing a
+*different* release of the same title — a different regional cut, an extended edition, a
+different intro/logo/credits length — every preview will be offset from the correct
+playback position by the same **constant** amount across the whole title, because the
+backend never rescales the preview timeline to match the caller's duration (except for
+genuine PAL/NTSC framerate conversions, reported via `PreviewTrack.scale` / `SeekrTrack.scale`).
+
+You can detect this before the user ever notices a drifted thumbnail by comparing
+`sourceDurationMs` (the duration the sprites were generated from) against the `durationMs`
+you passed to `loadTrack`:
+
+```kotlin
+val driftMs = track.sourceDurationMs - durationMsPassedToLoadTrack
+if (driftMs != 0L) {
+    track.offsetMs = driftMs // correct every lookup up front
+}
+```
+
+`offsetMs` is exactly the fix — it's a signed correction added to the requested position
+before every cue lookup, conceptually identical to a subtitle sync offset. Because the lookup
+is `position + offsetMs`, a **negative** value is what you want in the common case, where the
+played release has *extra* content at the head (a logo or black frames the sprite source
+lacked); a **positive** value handles the reverse, where the played release is *missing* head
+content. `sourceDurationMs - durationMsPassedToLoadTrack` gives the right sign automatically,
+so prefer it over reasoning it out by hand. It's a mutable `var`, safe to nudge live
+from a "sync +/-" UI control while lookups keep happening on every scrub event — you don't
+need to re-create the track.
+
+### Diagnosing a mismatch
+
+Use the shape of the error to tell the three causes above apart:
+
+| Symptom | Cause |
+|---------|-------|
+| Sawtooth error that resets every interval (drifts, then snaps back) | Cue quantisation (§1) |
+| Small random error, a few seconds, no pattern | Keyframe approximation (§2) |
+| Constant error across the whole title | Source version mismatch — set `offsetMs` (§4) |
+
 ## Publishing (maintainers)
 
 Publishing is wired with the [`com.vanniktech.maven.publish`](https://github.com/vanniktech/gradle-maven-publish-plugin)
