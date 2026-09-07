@@ -19,6 +19,14 @@ dependencies {
     api(libs.kotlinx.coroutines.core)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
+
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotlin.test.junit)
+    testImplementation(libs.junit)
+}
+
+tasks.test {
+    useJUnit()
 }
 
 // Coordinates, POM and signing come from gradle.properties (root + this module) and are

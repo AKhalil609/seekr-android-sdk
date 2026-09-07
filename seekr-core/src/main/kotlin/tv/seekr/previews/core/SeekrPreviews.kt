@@ -30,9 +30,9 @@ class SeekrPreviews private constructor(
      * for every title.
      */
     suspend fun loadTrack(content: SeekrContent, durationMs: Long): PreviewTrack? {
-        val cues = lookup.loadCues(content, durationMs) ?: return null
-        if (cues.isEmpty()) return null
-        return PreviewTrack(cues)
+        val result = lookup.loadCues(content, durationMs) ?: return null
+        if (result.cues.isEmpty()) return null
+        return PreviewTrack(result.cues, result.sourceDurationMs, result.scale)
     }
 
     /** Verifies the API key against `/v1/keys/validate`. Use this only to surface a clear

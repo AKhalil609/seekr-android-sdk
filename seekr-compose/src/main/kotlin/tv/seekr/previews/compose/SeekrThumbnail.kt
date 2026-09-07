@@ -31,6 +31,15 @@ import tv.seekr.previews.android.SeekrTrack
  *
  * @param track the track from [tv.seekr.previews.android.Seekr.loadTrack]; null renders nothing.
  * @param positionMs the scrub position to preview.
+ * @param offsetMs optional signed sync correction in milliseconds, forwarded to
+ * [tv.seekr.previews.android.SeekrTrack.offsetMs] every recomposition. Wire this to a "sync
+ * +/-" control next to your scrubber when the preview release doesn't match the playback
+ * release; see [tv.seekr.previews.core.PreviewTrack.offsetMs] for the sign convention.
+ * Defaults to `null`, which leaves the track's existing `offsetMs` untouched — pass a value
+ * only if this composable owns the offset, otherwise it would overwrite an offset you set
+ * on the track yourself (e.g. seeded from `sourceDurationMs`). Changing it alone (without
+ * [positionMs] changing) re-fetches the thumbnail so the nudge is visible immediately, even
+ * while paused.
  */
 @Composable
 fun SeekrThumbnail(
@@ -38,13 +47,17 @@ fun SeekrThumbnail(
     positionMs: Long,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Fit,
+    offsetMs: Long? = null,
 ) {
     var bitmap by remember(track) { mutableStateOf<Bitmap?>(null) }
-    // Conflate rapid position changes so only the latest position triggers a crop.
-    val posFlow = remember { MutableStateFlow(positionMs) }
-    LaunchedEffect(positionMs) { posFlow.value = positionMs }
+    // Conflate rapid position/offset changes so only the latest pair triggers a crop.
+    val posFlow = remember { MutableStateFlow(positionMs to offsetMs) }
+    LaunchedEffect(positionMs, offsetMs) { posFlow.value = positionMs to offsetMs }
     LaunchedEffect(track) {
-        posFlow.collectLatest { pos ->
+        posFlow.collectLatest { (pos, offset) ->
+            // Null means "this composable doesn't own the offset" — don't clobber a value the
+            // caller set on the track itself.
+            if (offset != null) track?.offsetMs = offset
             // Only overwrite bitmap on success; keeps last good frame visible during crop.
             track?.thumbnailAt(pos)?.let { bitmap = it }
         }

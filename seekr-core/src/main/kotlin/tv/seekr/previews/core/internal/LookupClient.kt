@@ -9,6 +9,16 @@ import okhttp3.Request
 import tv.seekr.previews.core.SeekrContent
 
 /**
+ * Result of [LookupClient.loadCues]: the parsed cues plus the `/sprites` lookup metadata
+ * needed by [tv.seekr.previews.core.PreviewTrack] (source duration, timebase scale).
+ */
+internal data class CueLookupResult(
+    val cues: List<VttCue>,
+    val sourceDurationMs: Long,
+    val scale: Double,
+)
+
+/**
  * Talks to the two Seekr hosts:
  *  - `api.seekr.tv` for the key-gated `/sprites` lookup and `/v1/keys/validate`.
  *  - `sprites.seekr.tv` (whatever host the signed `vtt_url` points at) for the VTT,
@@ -25,13 +35,17 @@ internal class LookupClient(
     private val base = baseUrl.trimEnd('/')
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun loadCues(content: SeekrContent, durationMs: Long): List<VttCue>? =
+    suspend fun loadCues(content: SeekrContent, durationMs: Long): CueLookupResult? =
         withContext(Dispatchers.IO) {
             val lookup = fetchLookup(content, durationMs) ?: return@withContext null
             // st=1 asks the sprites Worker to serve cue times already on the client
             // timeline (it applies the scale baked into vtt_url), so no scaling here.
             val vtt = fetchVtt(lookup.vttUrl + "&st=1") ?: return@withContext null
-            Vtt.parse(vtt)
+            CueLookupResult(
+                cues = Vtt.parse(vtt),
+                sourceDurationMs = lookup.sourceDurationMs,
+                scale = lookup.scale,
+            )
         }
 
     suspend fun validateKey(): Boolean = withContext(Dispatchers.IO) {
