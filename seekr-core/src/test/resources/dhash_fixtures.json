@@ -1,0 +1,118 @@
+{
+  "algo": "dhash8",
+  "producer": "zoetrope/fingerprint.py",
+  "fixtures": [
+    {
+      "pattern": "mosaic",
+      "width": 320,
+      "height": 180,
+      "boxWidth": 320,
+      "boxHeight": 180,
+      "hash": "d9fc64b191266ecb"
+    },
+    {
+      "pattern": "mosaic",
+      "width": 640,
+      "height": 360,
+      "boxWidth": 320,
+      "boxHeight": 180,
+      "hash": "cdcc4cb33332cccc"
+    },
+    {
+      "pattern": "mosaic",
+      "width": 1280,
+      "height": 536,
+      "boxWidth": 320,
+      "boxHeight": 180,
+      "hash": "00a5005aa5525281"
+    },
+    {
+      "pattern": "mosaic",
+      "width": 321,
+      "height": 181,
+      "boxWidth": 320,
+      "boxHeight": 180,
+      "hash": "d9fc64b191266ecb"
+    },
+    {
+      "pattern": "gradient",
+      "width": 200,
+      "height": 300,
+      "boxWidth": 320,
+      "boxHeight": 180,
+      "hash": "7979797979797979"
+    },
+    {
+      "pattern": "gradient",
+      "width": 256,
+      "height": 144,
+      "boxWidth": 320,
+      "boxHeight": 180,
+      "hash": "fffefcfdfbf3f7ef"
+    },
+    {
+      "pattern": "bars",
+      "width": 64,
+      "height": 36,
+      "boxWidth": 320,
+      "boxHeight": 180,
+      "hash": "6b6b6b6b6b6b6b6b"
+    },
+    {
+      "pattern": "checker",
+      "width": 7,
+      "height": 5,
+      "boxWidth": 320,
+      "boxHeight": 180,
+      "hash": "d0d0d0c1c0eeaeee"
+    },
+    {
+      "pattern": "checker",
+      "width": 3,
+      "height": 2,
+      "boxWidth": 320,
+      "boxHeight": 180,
+      "hash": "a2a2a2a2a2a2a2a2"
+    },
+    {
+      "pattern": "hifreq",
+      "width": 640,
+      "height": 360,
+      "boxWidth": 320,
+      "boxHeight": 180,
+      "hash": "0000000000000000"
+    },
+    {
+      "pattern": "hifreq",
+      "width": 1920,
+      "height": 1080,
+      "boxWidth": 320,
+      "boxHeight": 180,
+      "hash": "0000000000000000"
+    },
+    {
+      "pattern": "mosaic",
+      "width": 640,
+      "height": 360,
+      "boxWidth": 160,
+      "boxHeight": 90,
+      "hash": "cdcc4cb33332cccc"
+    },
+    {
+      "pattern": "gradient",
+      "width": 852,
+      "height": 480,
+      "boxWidth": 426,
+      "boxHeight": 240,
+      "hash": "b6bd6fdbd6b56d5b"
+    },
+    {
+      "pattern": "flat",
+      "width": 320,
+      "height": 180,
+      "boxWidth": 320,
+      "boxHeight": 180,
+      "hash": "0000000000000000"
+    }
+  ]
+}

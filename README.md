@@ -333,6 +333,138 @@ that control, label it as a suggestion and keep it undoable.
 `sourceDurationMs` defaults to `0` when the backend omits `source_duration_ms` (older
 backends), so guard for that before computing any drift at all.
 
+Better still, don't guess at all — see §5.
+
+### 5. Automatic sync by matching frames
+
+The offset in §4 is a property of *where* two releases differ, which no arithmetic on their
+durations can recover. So don't infer it — **measure** it. The backend publishes a 64-bit
+perceptual hash of every sprite thumbnail; hand the SDK a few frames decoded from the video
+you are actually playing, and it finds them in that list and reads the offset straight out of
+the match.
+
+```kotlin
+// Four frames spread across one cue interval, taken at a quiet moment in playback.
+val burst = BitmapSample(
+    frames = captures.map { BitmapFrame(it.bitmap, it.playbackMs) },
+)
+
+val match = track.matchOffset(listOf(burst1, burst2, burst3, burst4, burst5))
+if (match != null) {
+    track.offsetMs = match.offsetMs      // apply silently
+}                                        // null → leave the manual control in charge
+```
+
+If your player can't seek — a P2P stream, where seeking ahead lands on pieces nobody has
+downloaded — collect bursts as playback reaches them instead:
+
+```kotlin
+val matcher = track.offsetMatcher()
+
+// ... every 30-60s of playback, once a burst has been captured:
+val match = matcher.offer(burst)
+when {
+    match != null -> track.offsetMs = match.offsetMs
+    matcher.isTerminal -> stopCapturingFrames()   // see MatchStatus for why
+    else -> Unit                                   // keep feeding
+}
+```
+
+#### What to capture
+
+A `BitmapSample` is a **burst**: several frames taken close together, spread evenly across
+one cue interval (`track.cueIntervalMs`). The burst, not the frame, is the unit of evidence.
+
+| Rule | Why |
+|------|-----|
+| **4 frames per burst**, `cueIntervalMs / 4` apart | Thumbnails exist only at cue positions, so a single frame grabbed at an arbitrary moment is usually mid-shot and resembles nothing in the list. Measured against a real second release: 1 frame resolves **24.4%** of the time, 2 resolves **53.0%**, 4 resolves **86.0%** — against an 85.0% ceiling. One frame per burst isn't four times cheaper, it's mostly broken. |
+| **5 bursts**, spread across playback | Three must agree; five gives the consensus rule something to reject. |
+| **Skip the first ~60 seconds** | Logos, black frames and title cards are low-entropy and hash-degenerate — the worst possible material to fingerprint. |
+| **Small bitmaps are fine** | Everything reduces to 9×8 anyway. Handing over 256×144 instead of a full-resolution frame costs a mean of **0.09 bits** of hash error and never more than 1, against the ~6 bits a real re-encode costs. Grab the cheapest thing your player will give you; ~256×144 is a comfortable default. |
+
+#### `null` means keep manual control
+
+Matching declines rather than guessing when fewer than three bursts agree. That is normal —
+expect it on roughly 14% of attempts even with good frames — and it is the safe outcome,
+because the manual control from §4 is still there. Leave `offsetMs` alone and say nothing.
+
+The asymmetry is the whole design. A decline costs the user nothing they didn't already have.
+A *wrong* automatic sync moves every thumbnail uniformly, which looks like a correct preview
+of the wrong moment rather than a bug, so nobody reports it — they just stop trusting the
+scrubber. Consensus is therefore deliberately strict: three of the last five bursts must
+agree within ±(interval/2 + 3s), and estimates that fall outside are discarded rather than
+averaged in.
+
+For the same reason **nothing is ever applied for you**, and there is no confidence threshold
+to tune: receiving a non-`null` result *is* the confidence gate. `OffsetMatch.confidence` is
+there for your logs, not for a second `if`.
+
+#### When it can't work at all
+
+`OffsetMatcher.status` explains every `null`, and `isTerminal` says whether to give up:
+
+| Status | Terminal | Meaning |
+|--------|----------|---------|
+| `NEED_MORE_BURSTS` | no | Fewer than 3 bursts so far. Keep feeding. |
+| `NO_CONSENSUS` | no | Bursts disagree. Keep feeding — the window rolls. |
+| `NO_HASHES_PUBLISHED` | yes | This version has no hashes, or its sidecar isn't uploaded. |
+| `UNSUPPORTED_ALGO` | yes | Hashes use a reduction this SDK version doesn't implement. |
+| `HASH_COUNT_MISMATCH` | yes | Hash list and cue list disagree on length, so index N is no longer cue N. Declining beats mis-indexing. |
+| `HASH_FETCH_FAILED` | after 3 tries | Download failed. One blip shouldn't disable the feature; a dead URL shouldn't be re-fetched on every burst. |
+
+Stop capturing frames when `isTerminal` is `true`. Frame capture costs a readback per frame,
+and repeating it for a title that structurally cannot match is pure battery loss.
+
+#### It never blocks a thumbnail
+
+The hash list is downloaded on the **first** `matchOffset` call — never during `loadTrack`,
+and never on the path that draws a thumbnail. Matching runs on background dispatchers and
+costs microseconds of CPU per frame. Draw previews immediately with whatever `offsetMs` you
+already have and swap in a matched value only if one arrives; a failed or slow match should be
+indistinguishable from today's behaviour, at today's speed.
+
+#### Precision
+
+`OffsetMatch.offsetMs` is derived from the matched cue's start time, so it is quantised to
+the cue grid — expect the true offset rounded to the nearest cue, not to the millisecond.
+Versions generated before 2026-09-07 additionally carry up to ±3s of cue jitter (§2), which
+the matched offset inherits. Both are well inside the tolerance the consensus window already
+allows for, and both are far better than a duration guess that can be tens of seconds out.
+
+### 6. Signed-in apps: no key, and scrubbing cue to cue
+
+An app that already signs the user in to a Seekr account (the Seekr TV app) passes the
+account's bearer token instead of a key:
+
+```kotlin
+val seekr = Seekr.create(auth = SeekrAuth.Bearer { tokenStore.current() })
+
+when (val r = seekr.lookupTrack(content, durationMs, positionMs = player.currentPosition)) {
+    is SeekrTrackResult.Found -> track = r.track
+    SeekrTrackResult.NoPreviews -> Unit                    // this title has no sprites
+    is SeekrTrackResult.Rejected -> showStatus(r.reason)   // SignedOut, Unauthorized, AccountSuspended, …
+    is SeekrTrackResult.RateLimited -> retryLater(r.retryAfterSec)
+    SeekrTrackResult.Unavailable -> retryLater(null)       // offline / server error
+}
+```
+
+`loadTrack` is the same call collapsed to "track or `null`".
+
+To scrub so the frame you show is the frame a seek lands on, step by cue and seek to the cue's
+start — `stepCue` works on the preview timeline and `toPlaybackMs` undoes `offsetMs`:
+
+```kotlin
+val cue = track.stepCue(positionMs = scrubMs, steps = +1) ?: return   // -1 for backwards
+val seekTo = track.toPlaybackMs(cue.startMs)
+```
+
+Stepping back from the middle of a cue first returns that cue's own start; from a cue's exact
+start, `-1` is the previous cue. Both clamp at the ends of the track.
+
+The playback-attestation token (`X-Playback-Attestation`) is minted for you from the secret the
+release was built with; `positionMs` is bound into it. A device clock that is far off is
+corrected from the server's `Date` header and the call retried once.
+
 ### Diagnosing a mismatch
 
 Use the shape of the error to tell the causes above apart:
@@ -343,8 +475,10 @@ Use the shape of the error to tell the causes above apart:
 | Sawtooth error that resets every interval (drifts, then snaps back) | Cue quantisation (§1) |
 | Small random error, a few seconds, no pattern | Keyframe approximation (§2) |
 | Preview is right while scrubbing, wrong after the seek lands | Seek parameters — see (§3) |
-| Constant error across the whole title, in the same direction everywhere | Source version mismatch — offer a manual `offsetMs` control (§4) |
+| Constant error across the whole title, in the same direction everywhere | Source version mismatch — measure it with `matchOffset` (§5), or offer a manual `offsetMs` control (§4) |
 | Constant error that appeared after you added a "smart" auto-offset | You're auto-applying `sourceDurationMs - durationMs` (§4) |
+| Auto-sync always declines (`matchOffset` returns `null` every time) | Check `OffsetMatcher.status`: usually `NO_HASHES_PUBLISHED`, or bursts of one frame instead of four (§5) |
+| Auto-sync returns a confident but wrong offset | Frames timestamped on the wrong clock, or `playbackMs` not matching the position passed to `thumbnailAt` (§5) |
 
 ## Designing the scrub UI
 

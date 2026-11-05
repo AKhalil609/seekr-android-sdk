@@ -181,4 +181,65 @@ class PreviewTrackTest {
         track.offsetMs = -5_000L
         assertNull(track.tileAt(0L))
     }
+
+    @Test
+    fun `cueIntervalMs reports the grid spacing`() {
+        assertEquals(10_000L, sampleTrack().cueIntervalMs)
+    }
+
+    @Test
+    fun `cueIntervalMs is a median, so keyframe jitter does not move it`() {
+        // Cue starts are snapped to real keyframes, so consecutive gaps vary by a second or
+        // two either way even though the underlying grid is uniform. A median reports the
+        // grid; a mean reports the grid plus whatever the snapping did.
+        val track = PreviewTrack(
+            listOf(
+                cue(0L, 9_400L, "sheet-0"),
+                cue(9_400L, 21_100L, "sheet-1"),
+                cue(21_100L, 29_800L, "sheet-2"),
+                cue(29_800L, 40_300L, "sheet-3"),
+                cue(40_300L, 41_000L, "sheet-4"), // short tail cue
+            ),
+        )
+        assertEquals(10_500L, track.cueIntervalMs)
+    }
+
+    @Test
+    fun `cueIntervalMs falls back to the generator default for a track too short to measure`() {
+        assertEquals(10_000L, PreviewTrack(listOf(cue(0L, 10_000L, "sheet-0"))).cueIntervalMs)
+        assertEquals(10_000L, PreviewTrack(emptyList()).cueIntervalMs)
+    }
+
+    @Test
+    fun `stepCue walks cue to cue and clamps at the ends`() {
+        val track = sampleTrack()
+        assertEquals(10_000L, track.stepCue(5_000L, 1)?.startMs.let { it })
+        assertEquals(20_000L, track.stepCue(10_000L, 1)?.startMs)
+        assertEquals(20_000L, track.stepCue(20_000L, 1)?.startMs) // end of the track
+        assertEquals(0L, track.stepCue(0L, -1)?.startMs) // start of the track
+        assertEquals(0L, track.stepCue(10_000L, -1)?.startMs)
+    }
+
+    @Test
+    fun `stepping back from the middle of a cue lands on that cue's own start first`() {
+        val track = sampleTrack()
+        assertEquals(10_000L, track.stepCue(18_500L, -1)?.startMs)
+        assertEquals(0L, track.stepCue(18_500L, -2)?.startMs)
+        assertEquals(20_000L, track.stepCue(18_500L, 1)?.startMs)
+    }
+
+    @Test
+    fun `stepCue works on the preview timeline and toPlaybackMs undoes the offset`() {
+        val track = sampleTrack()
+        track.offsetMs = -4_000L // the played release has 4s extra at the head
+        // playback 16s is preview 12s → cue 10s; one step on is the 20s cue, shown at playback 24s
+        val next = track.stepCue(16_000L, 1)
+        assertEquals(20_000L, next?.startMs)
+        assertEquals(24_000L, track.toPlaybackMs(next!!.startMs))
+    }
+
+    @Test
+    fun `stepCue on an empty track is null`() {
+        assertNull(PreviewTrack(emptyList()).stepCue(0L, 1))
+    }
 }

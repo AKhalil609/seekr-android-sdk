@@ -35,3 +35,5 @@ jobs:
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          # Must equal the backend's PLAYBACK_ATTESTATION_SECRET. Unset = the release sends no token.
+          SEEKR_ATTESTATION_SECRET: ${{ secrets.SEEKR_ATTESTATION_SECRET }}

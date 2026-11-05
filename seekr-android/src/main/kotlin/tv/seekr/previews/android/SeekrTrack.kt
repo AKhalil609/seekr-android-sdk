@@ -5,7 +5,10 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import tv.seekr.previews.android.internal.SheetCache
+import tv.seekr.previews.android.internal.toCoreSample
+import tv.seekr.previews.core.OffsetMatch
 import tv.seekr.previews.core.PreviewTrack
+import tv.seekr.previews.core.SeekrCue
 import tv.seekr.previews.core.SeekrTile
 
 /**
@@ -43,8 +46,9 @@ class SeekrTrack internal constructor(
      * Defaults to `0`, and that is the right default: the offset depends on *where* two
      * releases differ, not on how much their durations differ, so it cannot be derived from
      * [sourceDurationMs]. See [tv.seekr.previews.core.PreviewTrack.sourceDurationMs] for why
-     * `sourceDurationMs - durationMs` must not be auto-applied, and prefer a user-facing
-     * "preview sync +/-" control instead.
+     * `sourceDurationMs - durationMs` must not be auto-applied, and [matchOffset] for how to
+     * measure the real value instead. Keep a user-facing "preview sync +/-" control for the
+     * cases where matching declines.
      *
      * Safe to set from the UI thread — e.g. from that sync control next to the scrubber —
      * while [thumbnailFor] is polled from a coroutine.
@@ -65,6 +69,104 @@ class SeekrTrack internal constructor(
             track.sheetUrls.map { url -> async { sheets.get(url) } }.awaitAll()
         }
     }
+
+    /**
+     * Typical spacing between cues, in milliseconds. Use it to space the frames within a
+     * burst for [matchOffset] — four frames, `cueIntervalMs / 4` apart.
+     */
+    val cueIntervalMs: Long get() = track.cueIntervalMs
+
+    /**
+     * Measures [offsetMs] automatically, by matching frames decoded from the video actually
+     * being played against perceptual hashes of the release these sprite sheets came from.
+     *
+     * This is what replaces guessing the offset from the duration difference. That guess is
+     * wrong whenever a release is trimmed at both ends — the gap is head + tail while only
+     * head is a valid constant offset — and it is wrong *silently*, which is worse than
+     * being wrong loudly.
+     *
+     * Returns `null` when the evidence does not support an answer. **Keep manual control in
+     * that case**: leave [offsetMs] alone and let the user's sync slider decide. Declining is
+     * normal, expected on roughly 14% of attempts even with good frames, and safe. A *wrong*
+     * automatic sync is not recoverable by the user, because it looks like a correct preview
+     * of the wrong moment rather than a bug.
+     *
+     * Nothing is applied for you:
+     * ```
+     * track.matchOffset(samples)?.let { track.offsetMs = it.offsetMs }
+     * ```
+     * Apply it silently — no dialog, no toast. And if the user is mid-scrub when the answer
+     * lands, decide deliberately whether to defer it until the overlay closes rather than
+     * shifting thumbnails under their hand.
+     *
+     * ### What to capture
+     * Each [BitmapSample] is a **burst**: frames grabbed close together, spread evenly across
+     * a single cue interval ([cueIntervalMs]).
+     *
+     * - **Four frames per burst.** Measured, not a rule of thumb: against a real second
+     *   release, 1 frame per burst resolved 24.4% of the time, 2 resolved 53.0% and 4
+     *   resolved 86.0%, against an 85.0% ceiling. Sprite thumbnails exist only at cue
+     *   positions, so a single frame grabbed at an arbitrary moment is usually mid-shot with
+     *   nothing resembling it in the hash list. One frame per burst is not four times
+     *   cheaper — it is mostly broken.
+     * - **Space them `cueIntervalMs / 4` apart** — about 2.5s on the usual 10s grid. Spreading
+     *   wider than one interval buys nothing, because every cue is at most one interval away.
+     * - **Five bursts across playback.** Three must agree; five gives the consensus rule
+     *   something to reject.
+     * - **Skip roughly the first 60 seconds.** Studio logos, black frames and title cards are
+     *   hash-degenerate — the worst material to fingerprint.
+     *
+     * ### Bitmap size
+     * Ask your player for a **small** bitmap. The first step of the reduction letterboxes the
+     * frame into the sprite tile's box (usually 320x180) and the hash ends at 9x8, so almost
+     * everything a bigger grab carries is discarded before it is measured — a full-resolution
+     * readback buys nothing and costs a much more expensive GPU round trip on exactly the
+     * devices least able to afford one.
+     *
+     * Measured against full-resolution 1920x1080 reductions of the same frames, over 160
+     * synthetic scenes spanning band-limited and fine-textured content: a frame handed over at
+     * 256x144 differs by a mean of 0.09 bits and never by more than 1; at 128x72, 0.12 bits
+     * and never more than 1; even 64x36 peaked at 2 bits, against the ~6 bits a real re-encode
+     * costs. Something like 256x144 is a comfortable default with plenty of margin.
+     *
+     * ### What it costs, and what it must never block
+     * The hash list is fetched on the first call and cached — never during
+     * [tv.seekr.previews.android.Seekr.loadTrack], and never on the path that draws a
+     * thumbnail. Matching runs on background dispatchers and is microseconds of CPU per
+     * frame. A slow or failed match is indistinguishable from never calling this at all,
+     * which is the point: draw thumbnails immediately with the current [offsetMs] and swap in
+     * a matched value only if one arrives.
+     *
+     * ### Collecting bursts over time
+     * This form needs every burst up front. A player that cannot seek can only capture frames
+     * as playback reaches them — use [offsetMatcher] for that, which also reports *why* it is
+     * still returning `null` and when to give up.
+     */
+    suspend fun matchOffset(samples: List<BitmapSample>): OffsetMatch? =
+        track.matchOffset(samples.map { it.toCoreSample() })
+
+    /**
+     * Starts an incremental matching session for callers that collect bursts over time.
+     *
+     * Feed it with [SeekrOffsetMatcher.offer] as each burst is captured; it returns `null`
+     * until enough bursts agree. [SeekrOffsetMatcher.status] explains any `null`, and
+     * [SeekrOffsetMatcher.isTerminal] tells you when to stop capturing frames because no
+     * future burst can help.
+     *
+     * See [matchOffset] for how many frames each burst needs and how to space them.
+     */
+    fun offsetMatcher(): SeekrOffsetMatcher = SeekrOffsetMatcher(track.offsetMatcher())
+
+
+    /**
+     * The cue [steps] away from the one containing [positionMs] (after [offsetMs]), for
+     * scrubbing from thumbnail to thumbnail. See [tv.seekr.previews.core.PreviewTrack.stepCue].
+     * The cue is on the preview timeline; [toPlaybackMs] gives the player position to seek to.
+     */
+    fun stepCue(positionMs: Long, steps: Int): SeekrCue? = track.stepCue(positionMs, steps)
+
+    /** The player position that shows the frame of a preview-timeline moment (a cue start): the inverse of [offsetMs]. */
+    fun toPlaybackMs(previewMs: Long): Long = track.toPlaybackMs(previewMs)
 
     /**
      * The thumbnail for [positionMs] as a cropped [Bitmap], or `null` if unavailable.
