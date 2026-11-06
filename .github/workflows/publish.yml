@@ -27,6 +27,9 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # the default installs the obsolete `tools` package, which current sdkmanager no longer has
+          packages: ""
 
       - name: Publish to Maven Central
         run: ./gradlew publishAndReleaseToMavenCentral --no-daemon --no-configuration-cache --stacktrace
