@@ -7,6 +7,7 @@ import android.graphics.Rect
 import android.util.LruCache
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -52,17 +53,19 @@ internal class SheetCache(
 
     private fun cachedSheet(url: String): Sheet? = synchronized(sheets) { sheets[url] }
 
-    /** True when the sheet is already downloaded, so a tile of it can be read without waiting for the network. */
-    fun isLoaded(url: String): Boolean = cachedSheet(url) != null
-
-    /** Downloads [url] if it is not held yet (one download per URL, however many callers). */
+    /**
+     * Downloads [url] if it is not held yet (one download per URL, however many callers). A caller cancelled mid-download
+     * (the user scrubbed on) still leaves the finished sheet in the cache for the next one.
+     */
     suspend fun load(url: String): Boolean {
         if (cachedSheet(url) != null) return true
-        return mutexFor(url).withLock {
-            if (cachedSheet(url) != null) return@withLock true
-            val sheet = download(url) ?: return@withLock false
-            synchronized(sheets) { sheets[url] = sheet }
-            true
+        return withContext(NonCancellable) {
+            mutexFor(url).withLock {
+                if (cachedSheet(url) != null) return@withLock true
+                val sheet = download(url) ?: return@withLock false
+                synchronized(sheets) { sheets[url] = sheet }
+                true
+            }
         }
     }
 

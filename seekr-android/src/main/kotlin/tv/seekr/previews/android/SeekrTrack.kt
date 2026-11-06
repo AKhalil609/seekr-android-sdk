@@ -236,12 +236,13 @@ class SeekrTrack internal constructor(
      * after a long seek) so the first thumbnails the user asks for are already local. Returns
      * once every sheet is held or failed; cancel the calling coroutine to stop. Only the
      * compressed sheets are kept (see [Seekr.create]'s `maxCachedSheets`), so this is cheap
-     * in memory even for a long film.
+     * in memory even for a long film. [limit] caps how many sheets are fetched (`1` = only the
+     * one under the playhead, to fill a strip that came back empty).
      */
-    suspend fun warm(positionMs: Long) {
+    suspend fun warm(positionMs: Long, limit: Int = Int.MAX_VALUE) {
         val gate = Semaphore(WARM_PARALLELISM)
         coroutineScope {
-            track.sheetUrlsNear(positionMs).map { url -> async { gate.withPermit { sheets.load(url) } } }.awaitAll()
+            track.sheetUrlsNear(positionMs).take(limit).map { url -> async { gate.withPermit { sheets.load(url) } } }.awaitAll()
         }
     }
 
