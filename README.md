@@ -64,8 +64,8 @@ val content = if (isSeries) {
 val track = seekr.loadTrack(content, durationMs = player.duration)
 // track == null  → no previews for this title; just don't show a thumbnail.
 
-// Eagerly download all sprite sheets so every lookup is instant.
-track?.prefetchSheets()
+// Download the sheets around the playhead so the first lookups are instant.
+track?.warm(player.currentPosition)
 ```
 
 Pass whichever ids you have. `Movie` and `Episode` are distinct types so you can't send
@@ -465,6 +465,23 @@ The playback-attestation token (`X-Playback-Attestation`) is minted for you from
 release was built with; `positionMs` is bound into it. A device clock that is far off is
 corrected from the server's `Date` header and the call retried once.
 
+### 7. A filmstrip, without stalling or exhausting memory
+
+Since 0.4.0 the cache keeps only the **compressed** sheets (a 3200×1800 sheet is about 1 MB
+compressed but 23 MB decoded) and decodes one tile at a time into a small LRU, so scrubbing a
+whole feature film is safe on a low-RAM TV. Two calls build a Netflix-style strip:
+
+```kotlin
+// when playback starts (and after a long seek): sheets under the playhead first, then outwards
+track.warm(player.currentPosition)
+
+// on every scrub step: 3 either side, centre at index 3. Never touches the network.
+val strip: List<SeekrThumbnail?> = track.thumbnailStrip(positionMs, before = 3, after = 3)
+```
+
+A slot is `null` past either end of the film and while its sheet is not downloaded yet; draw
+nothing for it rather than a placeholder. The returned bitmaps are shared with the cache — do
+not recycle or modify them. `maxCachedSheets` (default 12) bounds the compressed sheets held.
 ### Diagnosing a mismatch
 
 Use the shape of the error to tell the causes above apart:
