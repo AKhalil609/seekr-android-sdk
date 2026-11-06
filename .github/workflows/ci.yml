@@ -25,6 +25,9 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # the default installs the obsolete `tools` package, which current sdkmanager no longer has
+          packages: ""
 
       - name: Assemble release artifacts
         run: ./gradlew assembleRelease --no-daemon --stacktrace

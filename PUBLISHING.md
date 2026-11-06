@@ -50,6 +50,12 @@ Keep the passphrase you set — it's `SIGNING_KEY_PASSWORD`.
 | `SIGNING_KEY` | the full `-----BEGIN PGP PRIVATE KEY BLOCK-----…` from `gpg --armor --export-secret-keys` |
 | `SIGNING_KEY_PASSWORD` | the GPG key passphrase |
 
+A fifth secret, `SEEKR_ATTESTATION_SECRET`, must equal the backend's
+`PLAYBACK_ATTESTATION_SECRET`. It is compiled into the release (never committed) so the SDK can
+sign `X-Playback-Attestation`; a release built without it sends no token, which a backend in
+`enforce` mode refuses. Roll the backend out in `log` mode first, publish, then switch to
+`enforce`.
+
 The workflow maps these to the `ORG_GRADLE_PROJECT_*` properties the plugin expects, so no
 secret is ever written to a file.
 

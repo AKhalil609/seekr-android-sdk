@@ -27,6 +27,9 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # the default installs the obsolete `tools` package, which current sdkmanager no longer has
+          packages: ""
 
       - name: Publish to Maven Central
         run: ./gradlew publishAndReleaseToMavenCentral --no-daemon --no-configuration-cache --stacktrace
@@ -35,3 +38,5 @@ jobs:
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          # Must equal the backend's PLAYBACK_ATTESTATION_SECRET. Unset = the release sends no token.
+          SEEKR_ATTESTATION_SECRET: ${{ secrets.SEEKR_ATTESTATION_SECRET }}

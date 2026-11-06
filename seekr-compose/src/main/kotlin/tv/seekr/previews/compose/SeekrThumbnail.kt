@@ -29,17 +29,27 @@ import tv.seekr.previews.android.SeekrTrack
  * SeekrThumbnail(track = track, positionMs = scrubPositionMs)
  * ```
  *
+ * ### Scope: this is the quick-start path
+ * It draws a bare bitmap and gives you no access to the resolved cue, so it cannot label the
+ * frame with the moment it actually shows, snap your scrubber to the cue grid, or drive a
+ * seek that agrees with the preview. Thumbnails exist roughly once every 10 seconds, so any
+ * player that takes seek accuracy seriously will want all three. When you get there, drop
+ * this composable and own the loop yourself with
+ * [tv.seekr.previews.android.SeekrTrack.thumbnailFor], which returns `cueStartMs`/`cueEndMs`
+ * alongside the pixels — see the "Preview accuracy" section of the README.
+ *
  * @param track the track from [tv.seekr.previews.android.Seekr.loadTrack]; null renders nothing.
  * @param positionMs the scrub position to preview.
- * @param offsetMs optional signed sync correction in milliseconds, forwarded to
- * [tv.seekr.previews.android.SeekrTrack.offsetMs] every recomposition. Wire this to a "sync
- * +/-" control next to your scrubber when the preview release doesn't match the playback
- * release; see [tv.seekr.previews.core.PreviewTrack.offsetMs] for the sign convention.
- * Defaults to `null`, which leaves the track's existing `offsetMs` untouched — pass a value
- * only if this composable owns the offset, otherwise it would overwrite an offset you set
- * on the track yourself (e.g. seeded from `sourceDurationMs`). Changing it alone (without
- * [positionMs] changing) re-fetches the thumbnail so the nudge is visible immediately, even
- * while paused.
+ * @param offsetMs optional signed sync correction in milliseconds, **written through to**
+ * [tv.seekr.previews.android.SeekrTrack.offsetMs] on every recomposition. Wire this to a
+ * user-facing "sync +/-" control when the preview release doesn't match the playback release;
+ * see [tv.seekr.previews.core.PreviewTrack.offsetMs] for the sign convention, and
+ * [tv.seekr.previews.core.PreviewTrack.sourceDurationMs] for why you should not compute this
+ * value from a duration difference. Defaults to `null`, which leaves the track's existing
+ * `offsetMs` untouched — pass a value only if this composable is the single owner of the
+ * offset, otherwise it will clobber one you set on the track yourself. Changing it alone
+ * (without [positionMs] changing) re-fetches the thumbnail so the nudge is visible
+ * immediately, even while paused.
  */
 @Composable
 fun SeekrThumbnail(
