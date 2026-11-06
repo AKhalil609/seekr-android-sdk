@@ -24,9 +24,12 @@ import okhttp3.Request
  */
 internal class SheetCache(
     private val http: OkHttpClient,
-    private val maxSheets: Int,
+    maxSheets: Int,
     tileCacheBytes: Int = TILE_CACHE_BYTES,
 ) {
+    /** How many sheets are held at once. */
+    val capacity: Int = maxSheets.coerceAtLeast(1)
+
     private class Sheet(
         val decoder: BitmapRegionDecoder,
     )
@@ -35,7 +38,7 @@ internal class SheetCache(
     private val sheets =
         object : LinkedHashMap<String, Sheet>(INITIAL_CAPACITY, LOAD_FACTOR, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Sheet>): Boolean {
-                val evict = size > maxSheets.coerceAtLeast(1)
+                val evict = size > capacity
                 if (evict) eldest.value.decoder.let { d -> synchronized(d) { d.recycle() } }
                 return evict
             }
