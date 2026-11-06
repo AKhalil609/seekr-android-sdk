@@ -66,13 +66,13 @@ class Seekr private constructor(
          *   radius if it leaks, and keys are revocable from the dashboard.
          * @param baseUrl override only for staging / self-hosted control planes.
          * @param httpClient share your app's OkHttp instance to reuse its connection pool.
-         * @param maxCachedSheets how many decoded sprite sheets to keep in memory at once.
+         * @param maxCachedSheets how many downloaded (still compressed, about 1 MB each) sprite sheets to keep at once; tiles are decoded one at a time.
          */
         fun create(
             apiKey: String,
             baseUrl: String = SeekrPreviews.DEFAULT_BASE_URL,
             httpClient: OkHttpClient = OkHttpClient(),
-            maxCachedSheets: Int = 4,
+            maxCachedSheets: Int = 12,
         ): Seekr = create(SeekrAuth.ApiKey(apiKey), baseUrl, httpClient, maxCachedSheets)
 
         /**
@@ -85,7 +85,7 @@ class Seekr private constructor(
             auth: SeekrAuth,
             baseUrl: String = SeekrPreviews.DEFAULT_BASE_URL,
             httpClient: OkHttpClient = OkHttpClient(),
-            maxCachedSheets: Int = 4,
+            maxCachedSheets: Int = 12,
             attestation: SeekrAttestation = SeekrAttestation.BuiltIn,
         ): Seekr = Seekr(
             previews = SeekrPreviews.create(auth, baseUrl, httpClient, attestation),

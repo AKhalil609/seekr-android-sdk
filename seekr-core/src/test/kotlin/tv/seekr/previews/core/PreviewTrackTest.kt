@@ -242,4 +242,28 @@ class PreviewTrackTest {
     fun `stepCue on an empty track is null`() {
         assertNull(PreviewTrack(emptyList()).stepCue(0L, 1))
     }
+
+    @Test
+    fun `cuesAround returns the centre cue at index before with nulls past the ends`() {
+        val track = sampleTrack()
+        assertEquals(listOf(null, 0L, 10_000L), track.cuesAround(3_000L, 1, 1).map { it?.startMs })
+        assertEquals(listOf(0L, 10_000L, 20_000L), track.cuesAround(15_000L, 1, 1).map { it?.startMs })
+        assertEquals(listOf(10_000L, 20_000L, null, null), track.cuesAround(25_000L, 1, 2).map { it?.startMs })
+        assertEquals(emptyList(), PreviewTrack(emptyList()).cuesAround(0L, 2, 2))
+    }
+
+    @Test
+    fun `cuesAround follows the offset`() {
+        val track = sampleTrack()
+        track.offsetMs = 10_000L
+        assertEquals(10_000L, track.cuesAround(0L, 0, 0).single()?.startMs)
+    }
+
+    @Test
+    fun `sheetUrlsNear starts under the playhead and moves outwards`() {
+        val track = PreviewTrack((0..4).map { cue(it * 10_000L, it * 10_000L + 10_000L, "sheet-$it") })
+        assertEquals(listOf("sheet-2", "sheet-1", "sheet-3", "sheet-0", "sheet-4"), track.sheetUrlsNear(25_000L))
+        assertEquals(listOf("sheet-0", "sheet-1", "sheet-2", "sheet-3", "sheet-4"), track.sheetUrlsNear(0L))
+        assertEquals(emptyList(), PreviewTrack(emptyList()).sheetUrlsNear(0L))
+    }
 }

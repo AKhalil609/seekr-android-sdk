@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import tv.seekr.previews.android.internal.SheetCache
 import tv.seekr.previews.android.internal.toCoreSample
 import tv.seekr.previews.core.OffsetMatch
@@ -60,15 +62,10 @@ class SeekrTrack internal constructor(
         }
 
     /**
-     * Eagerly downloads and caches all sprite sheets for this track in parallel.
-     * Call once after [tv.seekr.previews.android.Seekr.loadTrack] so every subsequent
-     * [thumbnailAt] call hits the in-memory cache instead of the network.
+     * Downloads the sprite sheets from the start of the film, two at a time (the most recent
+     * `maxCachedSheets` are kept). Prefer [warm] with the playback position.
      */
-    suspend fun prefetchSheets() {
-        coroutineScope {
-            track.sheetUrls.map { url -> async { sheets.get(url) } }.awaitAll()
-        }
-    }
+    suspend fun prefetchSheets() = warm(0L)
 
     /**
      * Typical spacing between cues, in milliseconds. Use it to space the frames within a
@@ -233,18 +230,46 @@ class SeekrTrack internal constructor(
         return SeekrThumbnail(bitmap = bitmap, cueStartMs = cue.startMs, cueEndMs = cue.endMs)
     }
 
-    private suspend fun cropTile(tile: SeekrTile): Bitmap? {
-        val sheet = sheets.get(tile.sheetUrl) ?: return null
-        // ponytail: crop runs on the caller's dispatcher (Main) — it's a sub-ms pixel copy
-        // for typical thumbnail sizes. Avoids a Dispatchers.Default context switch which
-        // adds a suspension point and lets collectLatest cancel before the result lands.
-        val tileW = tile.w.takeIf { it > 0 } ?: 320
-        val tileH = tile.h.takeIf { it > 0 } ?: 180
-        val x = tile.x.coerceIn(0, (sheet.width - 1).coerceAtLeast(0))
-        val y = tile.y.coerceIn(0, (sheet.height - 1).coerceAtLeast(0))
-        val w = tileW.coerceAtMost((sheet.width - x).coerceAtLeast(1))
-        val h = tileH.coerceAtMost((sheet.height - y).coerceAtLeast(1))
-        return runCatching { Bitmap.createBitmap(sheet, x, y, w, h) }.getOrNull()
+    /**
+     * Downloads the sprite sheets around [positionMs] ahead of a scrub: the sheet under the
+     * playhead first, then outwards, two at a time. Call it when playback starts (and again
+     * after a long seek) so the first thumbnails the user asks for are already local. Returns
+     * once every sheet is held or failed; cancel the calling coroutine to stop. Only the
+     * compressed sheets are kept (see [Seekr.create]'s `maxCachedSheets`), so this is cheap
+     * in memory even for a long film.
+     */
+    suspend fun warm(positionMs: Long) {
+        val gate = Semaphore(WARM_PARALLELISM)
+        coroutineScope {
+            track.sheetUrlsNear(positionMs).map { url -> async { gate.withPermit { sheets.load(url) } } }.awaitAll()
+        }
+    }
+
+    /**
+     * A filmstrip around [positionMs]: `before + after + 1` slots in time order with the
+     * thumbnail under the playhead at index [before] (see [cueStartMs][SeekrThumbnail.cueStartMs]
+     * for what each one stands for). A slot is `null` past either end of the track and when its
+     * sheet is not downloaded yet. **Never waits for the network**: a missing sheet is not
+     * requested here, so a scrub does not queue downloads; start them with [warm].
+     *
+     * The bitmaps are shared with an internal cache: do not recycle or modify them.
+     */
+    suspend fun thumbnailStrip(positionMs: Long, before: Int, after: Int): List<SeekrThumbnail?> =
+        track.cuesAround(positionMs, before, after).map { cue ->
+            cue?.let { c ->
+                val t = c.tile
+                sheets.cachedTile(t.sheetUrl, t.x, t.y, t.w.takeIf { it > 0 } ?: TILE_W, t.h.takeIf { it > 0 } ?: TILE_H)
+                    ?.let { SeekrThumbnail(bitmap = it, cueStartMs = c.startMs, cueEndMs = c.endMs) }
+            }
+        }
+
+    private suspend fun cropTile(tile: SeekrTile): Bitmap? =
+        sheets.tile(tile.sheetUrl, tile.x, tile.y, tile.w.takeIf { it > 0 } ?: TILE_W, tile.h.takeIf { it > 0 } ?: TILE_H)
+
+    private companion object {
+        const val TILE_W = 320
+        const val TILE_H = 180
+        const val WARM_PARALLELISM = 2
     }
 }
 

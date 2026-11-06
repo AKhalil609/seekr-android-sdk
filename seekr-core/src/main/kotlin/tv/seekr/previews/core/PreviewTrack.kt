@@ -1,6 +1,7 @@
 package tv.seekr.previews.core
 
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.abs
 import tv.seekr.previews.core.internal.HashSource
 import tv.seekr.previews.core.internal.OffsetConsensus
 import tv.seekr.previews.core.internal.VttCue
@@ -311,6 +312,31 @@ class PreviewTrack internal constructor(
             else -> i + steps
         }
         return cues[target.coerceIn(0, cues.lastIndex)].let { SeekrCue(tile = it.tile, startMs = it.startMs, endMs = it.endMs) }
+    }
+
+    /**
+     * The cue containing [positionMs] (after [offsetMs]) and its neighbours, for a filmstrip:
+     * `before + after + 1` slots in time order, the centre cue at index [before]. A slot past
+     * either end of the track is `null`. Empty list for an empty track.
+     */
+    fun cuesAround(positionMs: Long, before: Int, after: Int): List<SeekrCue?> {
+        if (cues.isEmpty()) return emptyList()
+        val centre = indexOfCue(positionMs + offsetMs)
+        return (-before..after).map { d ->
+            cues.getOrNull(centre + d)?.let { SeekrCue(tile = it.tile, startMs = it.startMs, endMs = it.endMs) }
+        }
+    }
+
+    /**
+     * Sprite-sheet URLs ordered by distance from the sheet holding [positionMs] (after
+     * [offsetMs]): the one under the playhead first, then outwards. The order to download in
+     * when the user is about to scrub.
+     */
+    fun sheetUrlsNear(positionMs: Long): List<String> {
+        if (cues.isEmpty()) return emptyList()
+        val urls = sheetUrls.toList()
+        val here = urls.indexOf(cues[indexOfCue(positionMs + offsetMs)].tile.sheetUrl)
+        return urls.sortedBy { abs(urls.indexOf(it) - here) }
     }
 
     /**
