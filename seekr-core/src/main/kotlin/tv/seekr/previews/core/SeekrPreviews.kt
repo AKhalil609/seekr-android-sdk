@@ -48,6 +48,7 @@ class SeekrPreviews private constructor(
                 cues = result.cues,
                 sourceDurationMs = result.sourceDurationMs,
                 scale = result.scale,
+                exact = result.exact,
                 // Constructed, not fetched: HashSource downloads nothing until the first
                 // matchOffset call, so loading a track costs exactly what it always did.
                 hashes = HashSource(

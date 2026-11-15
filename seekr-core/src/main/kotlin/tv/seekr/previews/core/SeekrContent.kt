@@ -38,4 +38,18 @@ sealed interface SeekrContent {
             }
         }
     }
+
+    /**
+     * An anime episode ([kitsuId] + [episode]) or an anime movie ([episode] == null), addressed by
+     * Kitsu id. Sent as `kitsu_id` [+ `episode`].
+     */
+    data class Anime(
+        val kitsuId: Int,
+        val episode: Int? = null,
+    ) : SeekrContent {
+        init {
+            require(kitsuId > 0) { "kitsuId must be positive" }
+            require(episode == null || episode > 0) { "episode must be positive" }
+        }
+    }
 }

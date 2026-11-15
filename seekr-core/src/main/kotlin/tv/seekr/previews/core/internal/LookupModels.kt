@@ -31,6 +31,9 @@ internal data class SpriteLookup(
     // How many hashes `hashes.bin` holds, so a client can size its buffer and cross-check
     // the download. Defaults to 0, meaning "unknown" — not "empty".
     @SerialName("hash_count") val hashCount: Int = 0,
+    // The served version is within the server's exact window (10 s) of the requested duration.
+    // Older backends omit it; false then, which only widens contribution eligibility (never hides a preview).
+    @SerialName("exact") val exact: Boolean = false,
 )
 
 /** `/v1/keys/validate` response. */

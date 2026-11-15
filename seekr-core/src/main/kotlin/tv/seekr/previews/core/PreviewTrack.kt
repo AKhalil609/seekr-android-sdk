@@ -98,6 +98,12 @@ class PreviewTrack internal constructor(
      */
     val scale: Double = 1.0,
     private val hashes: HashSource? = null,
+    /**
+     * The served version's duration is within the server's exact window (10 s) of the duration
+     * you asked for (`exact` in `/sprites`). `false` also when an older backend omits the field.
+     * Contribution rule: contribute only when no track was found or `exact == false`.
+     */
+    val exact: Boolean = false,
 ) {
     private val offset = AtomicLong(0L)
 

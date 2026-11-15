@@ -122,4 +122,42 @@ class LookupClientTest {
         )
         assertIs<CueLoad.Failed>(runBlocking { client(SeekrAuth.ApiKey("k")) { reply(it, 404) }.loadCues(movie, 1_000, 0) })
     }
+
+    @Test
+    fun `anime is looked up by kitsu id and episode`() {
+        runBlocking {
+            client(SeekrAuth.ApiKey("k")) { reply(it, 404) }.loadCues(SeekrContent.Anime(1376, 5), 1_425_000, 0)
+            client(SeekrAuth.ApiKey("k")) { reply(it, 404) }.loadCues(SeekrContent.Anime(1376), 5_400_000, 0)
+        }
+        val (episode, film) = seen.map { it.url }
+        assertEquals("1376", episode.queryParameter("kitsu_id"))
+        assertEquals("5", episode.queryParameter("episode"))
+        assertEquals("1425000", episode.queryParameter("duration_ms"))
+        assertNull(episode.queryParameter("imdb_id"))
+        assertNull(episode.queryParameter("season"))
+        assertEquals("1376", film.queryParameter("kitsu_id"))
+        assertNull(film.queryParameter("episode"))
+    }
+
+    @Test
+    fun `the anime attestation is bound to the anime media key`() {
+        val secret = ByteArray(32) { 1 }
+        runBlocking { client(SeekrAuth.ApiKey("k"), secret) { reply(it, 404) }.loadCues(SeekrContent.Anime(1376, 5), 1_425_000, 0) }
+        assertEquals(
+            PlaybackAttestation.mint(secret, "anime:kitsu:1376:5", 0, 1_767_323_045_000L),
+            seen.single().header("X-Playback-Attestation"),
+        )
+    }
+
+    @Test
+    fun `exact travels from the lookup into the loaded result`() {
+        fun load(lookupJson: String): CueLoad.Loaded = runBlocking {
+            client(SeekrAuth.ApiKey("k")) {
+                if (it.url.encodedPath == "/sprites") reply(it, 200, lookupJson) else reply(it, 200, "WEBVTT\n\n")
+            }.loadCues(movie, 8_280_000, 0) as CueLoad.Loaded
+        }
+        assertEquals(true, load("""{"vtt_url":"https://sprites.seekr.tv/a.vtt?sig=1","exact":true}""").result.exact)
+        assertEquals(false, load("""{"vtt_url":"https://sprites.seekr.tv/a.vtt?sig=1","exact":false}""").result.exact)
+        assertEquals(false, load("""{"vtt_url":"https://sprites.seekr.tv/a.vtt?sig=1"}""").result.exact)
+    }
 }
