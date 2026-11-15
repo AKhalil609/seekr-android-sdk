@@ -25,6 +25,13 @@ class SeekrTrack internal constructor(
     val isEmpty: Boolean get() = track.isEmpty
 
     /**
+     * The served version's duration is within the server's exact window (10 s) of the duration passed to
+     * [Seekr.loadTrack] (`exact` in `/sprites`); `false` also when an older backend omits the field.
+     * Contribution rule: contribute only when no track was found or `exact == false`.
+     */
+    val exact: Boolean get() = track.exact
+
+    /**
      * Duration, in milliseconds, of the media this track's sprite sheets were generated from.
      * See [tv.seekr.previews.core.PreviewTrack.sourceDurationMs] — in particular, why the
      * difference between this and the `durationMs` you passed to `loadTrack` must **not** be
