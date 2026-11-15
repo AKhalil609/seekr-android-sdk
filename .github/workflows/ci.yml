@@ -29,5 +29,8 @@ jobs:
           # the default installs the obsolete `tools` package, which current sdkmanager no longer has
           packages: ""
 
+      - name: Unit tests (seekr-core)
+        run: ./gradlew :seekr-core:test --no-daemon --stacktrace
+
       - name: Assemble release artifacts
         run: ./gradlew assembleRelease --no-daemon --stacktrace

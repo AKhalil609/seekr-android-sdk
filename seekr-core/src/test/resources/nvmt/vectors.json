@@ -1,0 +1,326 @@
+{
+  "format": "nvmt-vectors/1",
+  "doc": "Golden vectors for PACKAGE-SPEC section 3. stage=precheck: parse() plus the header-vs-claim envelope comparison (|n_slots*grid_ms - claim.duration_ms| <= 2*grid_ms). stage=ingest: the package passes the precheck and validate_package() returns expect. expect=ok means accepted. claim.runtime_min, when present, is the reference runtime handed to validate_package.",
+  "generator": "scripts/gen_nvmt_vectors.py",
+  "pillow_version": "12.3.0",
+  "jpeg_quality": 70,
+  "vectors": [
+    {
+      "id": "valid_10s_grid",
+      "file": "valid_10s_grid.nvmt",
+      "stage": "ingest",
+      "expect": "ok",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 479500
+      },
+      "note": "10 s grid, 48 slots, slots 7 and 20 absent; every cue maps to its own slot",
+      "sha256": "3ab102bf38985f33bc0b2f3bf2420d5cff01f706af30b66bb0acb6fda32b644f",
+      "bytes": 158813
+    },
+    {
+      "id": "valid_5s_grid",
+      "file": "valid_5s_grid.nvmt",
+      "stage": "ingest",
+      "expect": "ok",
+      "claim": {
+        "media_type": "episode",
+        "duration_ms": 359000,
+        "show_imdb_id": "tt0000001",
+        "season": 1,
+        "episode": 1
+      },
+      "note": "5 s grid, 72 slots, thinned to 36 cues (odd slots dropped); slot 3 and slot 10 absent",
+      "sha256": "714d0e233aeff0ad4925f46a49e15544b05ba8973ccd5613a6cda335486b6f50",
+      "bytes": 244820
+    },
+    {
+      "id": "invalid_bad_format_magic",
+      "file": "invalid_bad_format_magic.nvmt",
+      "stage": "precheck",
+      "expect": "bad_format",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 120000
+      },
+      "note": "magic is not NVMT",
+      "sha256": "965efa93c24c7d3da3921e6246981e5603a4a9e1817a57f390c60fbfe034f2ea",
+      "bytes": 42161
+    },
+    {
+      "id": "invalid_bad_format_version",
+      "file": "invalid_bad_format_version.nvmt",
+      "stage": "precheck",
+      "expect": "bad_format",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 120000
+      },
+      "note": "version is 2",
+      "sha256": "6b9efb465952e8235ad2e2bca18c98b6dcd573d3d40ac69d2b639c1cf0c2f462",
+      "bytes": 42161
+    },
+    {
+      "id": "invalid_bad_format_truncated_header",
+      "file": "invalid_bad_format_truncated_header.nvmt",
+      "stage": "precheck",
+      "expect": "bad_format",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 120000
+      },
+      "note": "ends inside the 20-byte header",
+      "sha256": "50872a07d4c204670855227965b7812bc33d212f6d62353a32bc7b77721a81f6",
+      "bytes": 12
+    },
+    {
+      "id": "invalid_bad_format_truncated",
+      "file": "invalid_bad_format_truncated.nvmt",
+      "stage": "precheck",
+      "expect": "bad_format",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 120000
+      },
+      "note": "last JPEG is cut short",
+      "sha256": "48d42860b4bf6d35be2502ed2cc2cb834b45958ef61687bca23b63b910b9495a",
+      "bytes": 42121
+    },
+    {
+      "id": "invalid_bad_format_trailing_bytes",
+      "file": "invalid_bad_format_trailing_bytes.nvmt",
+      "stage": "precheck",
+      "expect": "bad_format",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 120000
+      },
+      "note": "bytes after the last tile",
+      "sha256": "0b2d7d67df2753206c12930d4d4fcd4cf3e43136d38a7464eaf2cc437747bf9e",
+      "bytes": 42164
+    },
+    {
+      "id": "invalid_bad_format_tile_count_exceeds_slots",
+      "file": "invalid_bad_format_tile_count_exceeds_slots.nvmt",
+      "stage": "precheck",
+      "expect": "bad_format",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 80000
+      },
+      "note": "tile_count 12 > n_slots 8",
+      "sha256": "0203e6c6fba0cc525c895b4dcfe051c0ce723c09ada0f8bec349278c0824b0e4",
+      "bytes": 42161
+    },
+    {
+      "id": "invalid_bad_format_slots_not_increasing",
+      "file": "invalid_bad_format_slots_not_increasing.nvmt",
+      "stage": "precheck",
+      "expect": "bad_format",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 120000
+      },
+      "note": "slot order 0,2,1,3,...",
+      "sha256": "675e606099c91bde8658f0f70d7dd4fec24076baee672f5f41364335b383fc13",
+      "bytes": 42161
+    },
+    {
+      "id": "invalid_bad_format_slots_duplicate",
+      "file": "invalid_bad_format_slots_duplicate.nvmt",
+      "stage": "precheck",
+      "expect": "bad_format",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 120000
+      },
+      "note": "slot 0 twice",
+      "sha256": "1e3e44208501cfb320f4ccf090eb3052e46e2c4fb7965aa55db0ebb167044e35",
+      "bytes": 42324
+    },
+    {
+      "id": "invalid_bad_format_slot_out_of_range",
+      "file": "invalid_bad_format_slot_out_of_range.nvmt",
+      "stage": "precheck",
+      "expect": "bad_format",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 120000
+      },
+      "note": "last slot equals n_slots",
+      "sha256": "01795d4c892a31a7d7c86538c588fdc5520da9293a2786fc808dd47bbe93c902",
+      "bytes": 41945
+    },
+    {
+      "id": "invalid_bad_format_tile_too_small",
+      "file": "invalid_bad_format_tile_too_small.nvmt",
+      "stage": "precheck",
+      "expect": "bad_format",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 120000
+      },
+      "note": "tile 0 is 102 bytes (< 125)",
+      "sha256": "e5e0518606ab3db7dbacc2c718ae1cb67e746e53a3a6060d71fabd65b1c79eb9",
+      "bytes": 38426
+    },
+    {
+      "id": "invalid_bad_format_tile_too_large",
+      "file": "invalid_bad_format_tile_too_large.nvmt",
+      "stage": "precheck",
+      "expect": "bad_format",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 120000
+      },
+      "note": "tile 0 is 200002 bytes (> 200000)",
+      "sha256": "ce57ee3ef3e3fbbb23abb4b2ffee15fbac74ce7ab0aee45ceca2f89212e8abd5",
+      "bytes": 238326
+    },
+    {
+      "id": "invalid_bad_format_not_jpeg",
+      "file": "invalid_bad_format_not_jpeg.nvmt",
+      "stage": "precheck",
+      "expect": "bad_format",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 120000
+      },
+      "note": "tile 0 does not start with FF D8",
+      "sha256": "40acfbc7d08f0548d6d2469637de0f400820e9c726a5d3b35742288f707ca7b7",
+      "bytes": 38528
+    },
+    {
+      "id": "invalid_bad_format_envelope",
+      "file": "invalid_bad_format_envelope.nvmt",
+      "stage": "precheck",
+      "expect": "bad_format",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 300000
+      },
+      "note": "structurally valid, but n_slots*grid_ms = 120000 is more than 2*grid_ms from the claimed 300000",
+      "sha256": "d36adc89a5150ef2c663dc4af0b9ad6dfb4c85bd7cad2cd0b0a436a9bc22cc43",
+      "bytes": 42161
+    },
+    {
+      "id": "invalid_grid_unsupported_7000",
+      "file": "invalid_grid_unsupported_7000.nvmt",
+      "stage": "precheck",
+      "expect": "grid_unsupported",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 120000
+      },
+      "note": "grid_ms 7000",
+      "sha256": "3527e60bfffa10fe8d2aa9124ae38e5a2ceb66cbd77ad0b31a2e39b2fa64a0f9",
+      "bytes": 42161
+    },
+    {
+      "id": "invalid_tile_size_640x360",
+      "file": "invalid_tile_size_640x360.nvmt",
+      "stage": "precheck",
+      "expect": "tile_size",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 120000
+      },
+      "note": "tile 5 is 640x360",
+      "sha256": "1c570e7ba9e221a71b81e44f8676117fc098518d72259008acbac7fc31076928",
+      "bytes": 46815
+    },
+    {
+      "id": "invalid_bad_format_pts_drift",
+      "file": "invalid_bad_format_pts_drift.nvmt",
+      "stage": "ingest",
+      "expect": "bad_format",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 120000
+      },
+      "note": "slots 6.. carry pts 12 s past their grid position (outside +/-10 s)",
+      "sha256": "e702c0d617ebf83f2dcb0a015d52b2297739ab4a3a4e885a1868c1bc4e7269fa",
+      "bytes": 42161
+    },
+    {
+      "id": "invalid_bad_format_pts_not_increasing",
+      "file": "invalid_bad_format_pts_not_increasing.nvmt",
+      "stage": "ingest",
+      "expect": "bad_format",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 120000
+      },
+      "note": "slot 3 pts 39000 then slot 4 pts 33000, both inside the window",
+      "sha256": "cd9491116fe875bc54de79d05aeae39873a33b187ab48e09b611787826e0a84f",
+      "bytes": 42161
+    },
+    {
+      "id": "invalid_low_coverage_67pct",
+      "file": "invalid_low_coverage_67pct.nvmt",
+      "stage": "ingest",
+      "expect": "low_coverage",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 120000
+      },
+      "note": "8 of 12 cues (66.7 %)",
+      "sha256": "999e17ed899b348f6ba3de6ecbca2accf36e83a4f98c2f93d6d116b28bb2c3bb",
+      "bytes": 28397
+    },
+    {
+      "id": "invalid_blank_tiles_33pct",
+      "file": "invalid_blank_tiles_33pct.nvmt",
+      "stage": "ingest",
+      "expect": "blank_tiles",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 120000
+      },
+      "note": "4 of 12 tiles are flat grey",
+      "sha256": "e403b1b68c4eae9b80ff64d0932d93d35971ac1db2248cc48798a0d1ebd19c67",
+      "bytes": 35435
+    },
+    {
+      "id": "invalid_low_diversity_dominant",
+      "file": "invalid_low_diversity_dominant.nvmt",
+      "stage": "ingest",
+      "expect": "low_diversity",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 120000
+      },
+      "note": "10 of 12 cues are the same picture (> 50 % one hash)",
+      "sha256": "32cf5fec94897ad1ebbbb5f1251b0bc3305bfe8eddba6848fb058c7b847668ad",
+      "bytes": 46909
+    },
+    {
+      "id": "valid_10s_grid_runtime_ok",
+      "file": "valid_10s_grid.nvmt",
+      "stage": "ingest",
+      "expect": "ok",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 479500,
+        "runtime_min": 8
+      },
+      "note": "valid_10s_grid.nvmt with reference runtime 8 min (claimed 7.99)",
+      "sha256": "3ab102bf38985f33bc0b2f3bf2420d5cff01f706af30b66bb0acb6fda32b644f",
+      "bytes": 158813
+    },
+    {
+      "id": "runtime_mismatch_movie",
+      "file": "valid_10s_grid.nvmt",
+      "stage": "ingest",
+      "expect": "runtime_mismatch",
+      "claim": {
+        "media_type": "movie",
+        "duration_ms": 479500,
+        "runtime_min": 12
+      },
+      "note": "valid_10s_grid.nvmt with reference runtime 12 min; movie tolerance is 3 min",
+      "sha256": "3ab102bf38985f33bc0b2f3bf2420d5cff01f706af30b66bb0acb6fda32b644f",
+      "bytes": 158813
+    }
+  ]
+}
