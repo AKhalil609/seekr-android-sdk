@@ -298,7 +298,7 @@ internal class CaptureSession(
                 when {
                     uploading() -> ContributionState.Uploading(pending)
                     wait != null -> ContributionState.Waiting(wait)
-                    uploadBlocked != null && pending >= uploadAfter -> ContributionState.Waiting(uploadBlocked!!)
+                    uploadBlocked != null && pending >= uploadAfter -> ContributionState.Waiting(uploadBlocked)
                     else -> ContributionState.Capturing(captured, captured + remaining.size)
                 },
             )
