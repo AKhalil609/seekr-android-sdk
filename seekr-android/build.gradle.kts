@@ -25,12 +25,23 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    testOptions {
+        // android.jar stubs throw on use; the tests only touch interfaces (SharedPreferences) and pure code.
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
     api(project(":seekr-core"))
     api(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
+
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotlin.test.junit)
+    testImplementation(libs.junit)
+    // Same version as libs.kotlinx.coroutines.android; not in the shared catalog to keep this module self-contained.
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
 }
 
 // Coordinates, POM and signing come from gradle.properties (root + this module), driven by
