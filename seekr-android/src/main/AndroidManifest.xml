@@ -4,4 +4,7 @@
     <!-- The SDK fetches the sprite lookup, VTT and sheets over the network. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Contributions upload only on unmetered networks: ConnectivityManager needs to be asked. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
 </manifest>

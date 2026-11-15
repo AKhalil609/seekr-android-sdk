@@ -123,3 +123,22 @@ class LookupModelsTest {
         assertEquals(0, lookup.hashCount)
     }
 }
+
+class LookupModelsExactTest {
+    private val json = Json {
+        ignoreUnknownKeys = true
+        coerceInputValues = true
+    }
+
+    @Test
+    fun `exact is parsed`() {
+        assertEquals(true, json.decodeFromString(SpriteLookup.serializer(), """{"vtt_url":"u","exact":true}""").exact)
+        assertEquals(false, json.decodeFromString(SpriteLookup.serializer(), """{"vtt_url":"u","exact":false}""").exact)
+    }
+
+    @Test
+    fun `an older backend that omits exact, or sends null, reads as not exact`() {
+        assertEquals(false, json.decodeFromString(SpriteLookup.serializer(), """{"vtt_url":"u"}""").exact)
+        assertEquals(false, json.decodeFromString(SpriteLookup.serializer(), """{"vtt_url":"u","exact":null}""").exact)
+    }
+}

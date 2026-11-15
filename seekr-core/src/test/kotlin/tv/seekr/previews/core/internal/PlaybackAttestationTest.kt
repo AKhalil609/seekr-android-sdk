@@ -36,4 +36,10 @@ class PlaybackAttestationTest {
         assertEquals("episode:tmdb:1396:1:3", PlaybackAttestation.mediaKey(SeekrContent.Episode(showTmdbId = 1396, showImdbId = "tt0903747", season = 1, episode = 3)))
         assertEquals("episode:imdb:tt0903747:1:3", PlaybackAttestation.mediaKey(SeekrContent.Episode(showImdbId = "TT0903747", season = 1, episode = 3)))
     }
+
+    @Test
+    fun `anime media key matches the backend's canonicalMediaKey`() {
+        assertEquals("anime:kitsu:1376:1", PlaybackAttestation.mediaKey(SeekrContent.Anime(1376, 1)))
+        assertEquals("anime:kitsu:1376", PlaybackAttestation.mediaKey(SeekrContent.Anime(1376)))
+    }
 }

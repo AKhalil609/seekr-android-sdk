@@ -37,7 +37,7 @@ path) or run on non-Android JVM.
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("tv.seekr:seekr-android:0.2.0")
+    implementation("tv.seekr:seekr-android:0.5.0")
 }
 ```
 
@@ -70,6 +70,19 @@ track?.warm(player.currentPosition)
 
 Pass whichever ids you have. `Movie` and `Episode` are distinct types so you can't send
 an ambiguous request — the API's identifier precedence is encoded in the model.
+
+Anime is looked up by Kitsu id. An anime episode passes its episode number; an anime movie
+leaves `episode` out:
+
+```kotlin
+val track = seekr.loadTrack(SeekrContent.Anime(kitsuId = 1376, episode = 3), durationMs = player.duration)
+val movie = seekr.loadTrack(SeekrContent.Anime(kitsuId = 32281), durationMs = player.duration)
+```
+
+**`exact`.** Seekr serves the nearest version of a title's previews, which may be a different
+cut or encode. `track.exact` is `true` when that version's duration is within 10 seconds of
+the `durationMs` you passed (`false` also when the server omits the field). Show previews
+either way; use `exact` only to decide whether to [contribute thumbnails](#contributing-thumbnails).
 
 ### 3. Show the thumbnail while scrubbing
 
@@ -515,6 +528,77 @@ that are *honest about their resolution* rather than the ones that interpolate h
 - **Don't cross-dissolve between frames.** A 10s jump is a cut, not a motion; a fade makes
   it read as lag.
 - **Expose the sync control** rather than guessing at an offset (§4).
+
+## Contributing thumbnails
+
+Previews exist only for titles someone has already generated. A player can help fill the gap:
+when Seekr has no preview for what the viewer is watching (or only an inexact one), the
+`SeekrContributor` captures thumbnails of **what is being watched** and uploads them, so the next
+viewer of the same file gets them. The SDK draws no UI: ask the user for consent in your app
+before you start a session. It needs a signed-in account (`SeekrAuth.Bearer`) or an API key.
+
+What it does:
+
+- **One 320 × 180 frame per 10 seconds** of playback, taken from the playing surface (PixelCopy).
+  No second decoder and no look-ahead. A cue is taken only when the video is playing at 1×, there
+  was no seek in the last 3 s and no stall in the last 2 s.
+- **Only what the server asks for.** Each session first asks `/needs`, and captures only the cues
+  it returns as needed (plus a small sample the server uses to verify uploads). Nothing is captured
+  for a title that is already covered.
+- **Skipped:** HDR video and secure (protected) surfaces. Capture stops for the session when frames
+  drop or the device is thermally throttled.
+- **Uploads wait** for an unmetered network (the default; `NetworkPolicy.Any` opts out), are
+  batched (every 30 cues, or after a pause), honour `Retry-After` and back off from 1 minute to 6 hours.
+- **Cache:** tiles are kept on disk (≤ 20 MB, LRU, 30 days) per file, and uploads resume after a restart.
+- **Stats:** `contributor.stats` is a `StateFlow` of titles and minutes captured and uploaded. It is
+  stored locally and never sent anywhere; `resetStats()` clears it.
+
+What leaves the device: the JPEG tiles, the title id, the duration, a hash of the file identity and
+the app version, sent with your credential. The server never returns who contributed.
+
+Wiring (`seekr-android` 0.5.0):
+
+```kotlin
+val contributor = SeekrContributor.create(
+    context, SeekrAuth.ApiKey(userKey), appVersion = "my-player/1.0",
+)
+val pts = FramePtsTracker()
+val frames = SurfaceViewFrameSource(pts).also { it.attach(surfaceView) }
+
+// The SDK has no media3 dependency: feed it the presentation time of each rendered frame.
+player.setVideoFrameMetadataListener { presentationTimeUs, _, _, _ -> pts.onVideoFrame(presentationTimeUs) }
+
+contributor.resumePending()              // once, at app start
+
+// Once per playback, after your preview lookup:
+val lookup = when (val r = seekr.lookupTrack(content, durationMs)) {
+    SeekrTrackResult.NoPreviews -> LookupOutcome.NoPreviews
+    is SeekrTrackResult.Found -> if (r.track.exact) LookupOutcome.Exact else LookupOutcome.Inexact
+    else -> LookupOutcome.Unknown
+}
+contributor.startSession(
+    content = content,
+    durationMs = player.duration,
+    fp = Fp.fromFile(filename, sizeBytes),   // or Fp.fromTorrent(infoHash, fileIdx)
+    frameSource = frames,
+    playback = PlaybackProbe { myPlaybackSnapshot() },   // isPlaying, speed, seek/stall times, HDR, secure, drops
+    lookup = lookup,
+)
+
+// When playback stops or the app backgrounds:
+contributor.stop(flush = true)
+```
+
+`myPlaybackSnapshot()` builds a `PlaybackSnapshot` from your player. Two requirements that the SDK
+cannot check for you:
+
+- **Size the `SurfaceView` to the video's aspect ratio.** The captured frame is letterboxed to
+  320 × 180 exactly as the server expects; a stretched surface produces distorted tiles.
+- **Feed `pts` from `setVideoFrameMetadataListener`.** A tile whose timestamp drifts more than 3 s
+  from its cue is discarded rather than uploaded.
+
+Observe `contributor.state` (a `StateFlow<ContributionState>`) to show progress in your UI. Retries,
+backoff and stop rules are handled inside the SDK.
 
 ## Publishing (maintainers)
 

@@ -25,6 +25,7 @@ internal data class CueLookupResult(
     val cues: List<VttCue>,
     val sourceDurationMs: Long,
     val scale: Double,
+    val exact: Boolean = false,
     val hashesUrl: String = "",
     val hashAlgo: String = "",
     val hashCount: Int = 0,
@@ -93,6 +94,7 @@ internal class LookupClient(
                     cues = Vtt.parse(vtt),
                     sourceDurationMs = lookup.sourceDurationMs,
                     scale = lookup.scale,
+                    exact = lookup.exact,
                     hashesUrl = lookup.hashesUrl,
                     hashAlgo = lookup.hashAlgo,
                     hashCount = lookup.hashCount,
@@ -130,6 +132,10 @@ internal class LookupClient(
                     content.showImdbId?.let { addQueryParameter("show_imdb_id", it) }
                     addQueryParameter("season", content.season.toString())
                     addQueryParameter("episode", content.episode.toString())
+                }
+                is SeekrContent.Anime -> {
+                    addQueryParameter("kitsu_id", content.kitsuId.toString())
+                    content.episode?.let { addQueryParameter("episode", it.toString()) }
                 }
             }
         }.build()
