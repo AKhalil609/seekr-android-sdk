@@ -218,6 +218,15 @@ class SeekrContributor internal constructor(
         }
     }
 
+    /**
+     * For a user opting out of contributing: ends any session without uploading, then deletes every cached tile, its metadata and the
+     * remembered rejected files. Statistics ([resetStats] is separate) and the installation token are kept. Safe when nothing is cached.
+     */
+    suspend fun clearPending() {
+        stop(flush = false)
+        cache.clear()
+    }
+
     fun resetStats() = statsRecorder.reset()
 
     /** Detaches [old] and lets it upload what it buffered in the background (it respects the same rules); never blocks the new session. */

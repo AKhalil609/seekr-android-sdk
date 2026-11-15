@@ -104,6 +104,12 @@ internal class TileCache(
     @Synchronized
     fun totalBytes(): Long = entries().sumOf { it.bytes }
 
+    /** Deletes every entry: tiles, metas and the remembered stopped files. */
+    @Synchronized
+    fun clear() {
+        root.listFiles()?.forEach { it.deleteRecursively() }
+    }
+
     /** Removes expired entries and trims to the cap. Call at start. */
     @Synchronized
     fun purge() {
