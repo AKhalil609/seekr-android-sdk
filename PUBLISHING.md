@@ -61,8 +61,8 @@ secret is ever written to a file.
 
 ## Cutting a release
 
-1. Bump `VERSION_NAME` in `gradle.properties` (e.g. `0.1.1` → `0.1.2`) and commit.
-2. Create a GitHub Release with a matching tag (e.g. `v0.1.1`).
+1. Bump `VERSION_NAME` in `gradle.properties` (e.g. `0.4.0` → `0.5.0`) and commit.
+2. Create a GitHub Release with a matching tag (e.g. `v0.5.0`).
 3. The **Publish** workflow runs `publishAndReleaseToMavenCentral` and, because
    `SONATYPE_AUTOMATIC_RELEASE=true`, the deployment validates and releases on its own.
 4. Artifacts are usually resolvable within ~15–30 min and indexed in search within a few
@@ -82,6 +82,6 @@ secret is ever written to a file.
 ```kotlin
 repositories { mavenCentral() }
 dependencies {
-    implementation("tv.seekr:seekr-android:0.1.1")   // or seekr-compose / seekr-core
+    implementation("tv.seekr:seekr-android:0.5.0")   // or seekr-compose / seekr-core
 }
 ```
