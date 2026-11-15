@@ -706,4 +706,30 @@ class ContributorTest {
         advance(320_000)
         assertEquals(listOf(30, 32), api.submits.last().cues, "31 is not captured any more")
     }
+
+    @Test
+    fun `clearPending ends the session without uploading and empties the cache but keeps stats`() = scenario {
+        val h = Harness(this)
+        h.start()
+        h.advance(31_500)
+        assertEquals(setOf(1, 3), h.cues)
+        h.cache.markStopped(FP2, tv.seekr.previews.android.internal.FileMeta(MOVIE, durationMs))
+        h.contributor.clearPending()
+        assertTrue(h.api.submits.isEmpty(), "nothing is uploaded")
+        assertTrue(h.cache.pendingFiles().isEmpty())
+        assertTrue(h.cues.isEmpty())
+        assertFalse(h.cache.isStopped(FP2), "the remembered stop set is gone too")
+        assertEquals(null, h.cache.meta(FP))
+        assertEquals(ContributionState.Idle, h.state)
+        assertEquals(2L, h.contributor.stats.value.tilesCaptured)
+        h.advance(60_000)
+        assertEquals(2, h.frames.capturedAt.size, "the session is over")
+    }
+
+    @Test
+    fun `clearPending works when nothing is cached`() = run {
+        contributor.clearPending()
+        assertEquals(ContributionState.Idle, state)
+        assertTrue(api.needsCalls.isEmpty() && api.submits.isEmpty())
+    }
 }
