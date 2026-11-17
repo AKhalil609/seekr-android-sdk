@@ -37,7 +37,7 @@ path) or run on non-Android JVM.
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("tv.seekr:seekr-android:0.5.0")
+    implementation("tv.seekr:seekr-android:0.6.0")
 }
 ```
 
@@ -553,10 +553,14 @@ What it does:
 - **Stats:** `contributor.stats` is a `StateFlow` of titles and minutes captured and uploaded. It is
   stored locally and never sent anywhere; `resetStats()` clears it.
 
+- **Full-title mode (0.6.0, opt-in):** `startSession(..., mode = ContributionMode.FullTitle, cueFrames = myCueFrameSource)`
+  also contributes every needed cue in the background while the player is open, from frames your app decodes. It is paced so
+  playback is never affected and falls back to while-watching on any trouble. See [docs/full-capture.md](docs/full-capture.md).
+
 What leaves the device: the JPEG tiles, the title id, the duration, a hash of the file identity and
 the app version, sent with your credential. The server never returns who contributed.
 
-Wiring (`seekr-android` 0.5.0):
+Wiring (`seekr-android` 0.6.0):
 
 ```kotlin
 val contributor = SeekrContributor.create(
